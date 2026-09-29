@@ -43,6 +43,7 @@
   <nav class="dock">
     <label class="dock-btn" title="Upload a photo">
       <input id="file" type="file" accept="image/*" hidden>
+      <input id="snap" type="file" accept="image/*" capture="environment" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
       <small>Upload</small>
     </label>
@@ -135,6 +136,7 @@
     <form method="dialog">
       <header class="sheet-head"><h2>Save photo</h2><button class="ghost" value="close">Close</button></header>
       <img id="result-img" class="result" alt="Your passport photo">
+      <p id="save-hint" class="small center" hidden></p>
       <p id="save-warning" class="note" hidden></p>
       <div class="exports">
         <button id="btn-save-digital" class="primary" type="button">Digital photo<small id="digital-label"></small></button>

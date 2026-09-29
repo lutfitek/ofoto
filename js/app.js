@@ -4,7 +4,7 @@ import {
   coverTransform, coversImage, sheetLayout, setJpegDpi,
 } from './spec.js';
 import { NEUTRAL, isNeutral, autoEnhance, applyEnhance, maskToAlpha } from './enhance.js';
-import { loadFaceDetector, faceDetectorReady, detectFace, segmentBackground } from './face.js';
+import { loadFaceDetector, faceDetectorReady, detectFace, segmentBackground, segModelSize } from './face.js';
 
 // One screen: the photo frame (live camera or captured photo), a guidance
 // bubble that says what to fix next (green ✓ when compliant), and a dock with
@@ -234,6 +234,7 @@ async function startCamera() {
     return;
   }
   const settings = state.stream.getVideoTracks()[0]?.getSettings?.() ?? {};
+  state.nativeCamera = false;
   state.mirrored = (settings.facingMode ?? state.facing) === 'user';
   video.classList.toggle('mirror', state.mirrored);
   overlay.classList.toggle('mirror', state.mirrored);
@@ -242,11 +243,21 @@ async function startCamera() {
   requestAnimationFrame(camLoop);
 }
 
+// No live camera (blocked, no HTTPS, or permission denied): Capture opens
+// the phone's own camera app instead, and the photo is checked afterwards.
 function showCameraError(msg) {
+  state.nativeCamera = true;
   $('bubble').className = 'bubble warn';
   $('bubble-icon').textContent = '📷';
-  $('bubble-title').textContent = msg;
-  $('bubble-sub').textContent = 'Use the Upload button to pick a photo instead';
+  $('bubble-title').textContent = 'Tap Capture to take the photo with your camera app';
+  $('bubble-sub').textContent = `${msg} – the photo is checked after you take it`;
+}
+
+function showError(title, sub = '') {
+  $('bubble').className = 'bubble bad';
+  $('bubble-icon').textContent = '!';
+  $('bubble-title').textContent = title;
+  $('bubble-sub').textContent = sub;
 }
 
 // Camera just became active: show how-to instructions (once per activation).
@@ -354,6 +365,7 @@ function startCountdownThen(fn) {
 
 $('btn-main').addEventListener('click', () => {
   if (state.mode === 'photo') { openSave(); return; }
+  if (state.nativeCamera) { $('snap').click(); return; }
   if (state.counting || !state.stream) return;
   $('intro').hidden = true;
   startCountdownThen(capture);
@@ -382,7 +394,7 @@ function capture() {
   openPhoto(c);
 }
 
-$('file').addEventListener('change', async (e) => {
+async function loadFile(e) {
   const file = e.target.files?.[0];
   e.target.value = '';
   if (!file) return;
@@ -392,7 +404,7 @@ $('file').addEventListener('change', async (e) => {
     img.src = url;
     await img.decode();
   } catch {
-    alert('Could not open that image.');
+    showError('Could not open that image', 'Try a JPEG or PNG photo');
     return;
   } finally {
     URL.revokeObjectURL(url);
@@ -404,7 +416,9 @@ $('file').addEventListener('change', async (e) => {
   c.height = Math.round(img.naturalHeight * k);
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   openPhoto(c);
-});
+}
+$('file').addEventListener('change', loadFile);
+$('snap').addEventListener('change', loadFile);
 
 // ---------------------------------------------------------------- analysis
 
@@ -933,7 +947,7 @@ async function ensureMask() {
   if (state.mask || !state.src) return;
   const src = state.src;
   const status = $('bg-status');
-  status.textContent = 'Finding you in the photo… (first time downloads a ~16 MB model)';
+  status.textContent = `Finding you in the photo… (first time downloads a ${segModelSize} model)`;
   try {
     const m = await segmentBackground(src);
     if (state.src !== src) return; // a new photo was taken meanwhile
@@ -947,7 +961,17 @@ async function ensureMask() {
       img.data[i * 4 + 3] = alpha[i];
     }
     c.getContext('2d').putImageData(img, 0, 0);
-    state.mask = c;
+    // Downsample so the smooth upscale when compositing feathers the edge
+    // (masks come back at full photo size with stair-stepped borders).
+    const k = Math.min(1, 384 / Math.max(c.width, c.height));
+    const soft = document.createElement('canvas');
+    soft.width = Math.max(1, Math.round(c.width * k));
+    soft.height = Math.max(1, Math.round(c.height * k));
+    const sctx = soft.getContext('2d');
+    sctx.imageSmoothingEnabled = true;
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(c, 0, 0, soft.width, soft.height);
+    state.mask = soft;
     status.textContent = 'Background replaced. Check the edges around hair and shoulders.';
     queueRender();
   } catch (err) {
@@ -1040,6 +1064,8 @@ async function openSave() {
     const failed = state.guide.checks.filter((c) => !c.ok);
     $('save-warning').hidden = !failed.length;
     $('save-warning').textContent = `⚠️ Not all checks pass yet: ${failed.map((c) => c.label).join(', ')}.`;
+    $('save-hint').hidden = false;
+    $('save-hint').textContent = 'Press and hold the photo to save it to your phone, or use the buttons below.';
     $('save').showModal();
   } finally {
     btn.disabled = false;
@@ -1052,7 +1078,15 @@ $('max-kb').addEventListener('change', async () => {
   $('digital-label').textContent = digitalLabel();
 });
 
+// Show the file in the save sheet (long-press → Save image works everywhere,
+// even where downloads and the share sheet are blocked), then try to share
+// or download it directly.
 async function save(blob, name) {
+  const img = $('result-img');
+  if (img.src) URL.revokeObjectURL(img.src);
+  img.src = URL.createObjectURL(blob);
+  $('save-hint').hidden = false;
+  $('save-hint').textContent = `Showing ${name}. If it doesn’t download, press and hold the image above and choose Save image.`;
   const file = new File([blob], name, { type: blob.type });
   if (navigator.canShare?.({ files: [file] })) {
     try {
@@ -1068,7 +1102,6 @@ async function save(blob, name) {
   document.body.append(a);
   a.click();
   a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
 const fileBase = () => `${state.country.id}-photo-${state.country.widthMm.toFixed(0)}x${state.country.heightMm.toFixed(0)}mm`;

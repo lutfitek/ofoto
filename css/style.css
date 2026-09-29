@@ -303,9 +303,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .result {
   display: block;
-  width: min(60%, calc(35dvh * var(--aspect, 1)));
+  width: auto;
+  max-width: 100%;
+  max-height: 40dvh;
   margin: 4px auto 12px;
   border-radius: 4px;
   box-shadow: 0 4px 20px #0008;
 }
 .exports { display: grid; gap: 8px; }
+.center { text-align: center; }
+.result { -webkit-touch-callout: default; user-select: auto; }
