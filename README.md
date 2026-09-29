@@ -8,8 +8,8 @@ Supported documents (pick one in **⋯ Settings → Document**):
 | | Size | Head (chin–crown) | Other placement | Background |
 |---|---|---|---|---|
 | 🇺🇸 United States ([rules](https://travel.state.gov/en/passports/apply/help/photos.html)) | 2 × 2 in (51 × 51 mm) | 25–35 mm (50–69%) | eyes 28–35 mm from bottom | white / off-white |
-| 🇬🇧 United Kingdom ([rules](https://www.passport.service.gov.uk/photo/how-to-take-a-photo)) | 35 × 45 mm | 29–34 mm | – | plain light colour (cream, light grey) |
-| 🇲🇾 Malaysia eVisa ([rules](https://malaysiavisa.imi.gov.my/evisa/check-photo)) | 35 × 50 mm | 30–35 mm | ≥ 5 mm above head | white |
+| 🇬🇧 United Kingdom ([rules](https://www.passport.service.gov.uk/photo/how-to-take-a-photo)) | 35 × 45 mm print; digital **uncropped** (head, shoulders, upper body, ≥ 600 × 750 px, 50 KB–10 MB) | 29–34 mm | – | plain light colour (cream, light grey) |
+| 🇲🇾 Malaysia eVisa ([rules](https://malaysiavisa.imi.gov.my/evisa/check-photo)) | 35 × 50 mm | 30–35 mm | ≥ 5 mm above head | white or blue |
 
 ## How it works
 
@@ -75,6 +75,34 @@ tip sits between the eyes and the chin.
 background replacement is on, the app says so. Retaking in good light against a plain wall is
 always the safest option. The app is a helper; the issuing agency makes the final decision.
 
+## Android app
+
+`android/` is a [Capacitor](https://capacitorjs.com) wrapper around the same web app. It
+runs fully offline: `scripts/build-web.mjs` bundles the MediaPipe runtime (SIMD build only)
+and the two models into `www/`, and the app has no internet permission.
+
+- **Camera:** the live camera works via WebView `getUserMedia`, and the camera-app fallback
+  works too.
+- **Saving:** files go to `Documents/PassportPhotos`, then the share sheet opens (print,
+  Drive, messaging).
+- **Look:** portrait only, dark theme and splash, back gesture closes sheets.
+
+**Build.** Every push that touches `passport-photo/` builds a new APK in GitHub Actions
+(`.github/workflows/android.yml`). It's published as the **android-test** pre-release; open
+that release on the phone, download `passport-photo.apk` and install it.
+
+Local build (needs Node 22, JDK 21 and the Android SDK):
+
+```sh
+npm ci
+npm run android:debug     # build www/, cap sync, gradle assembleDebug
+```
+
+**Signing.** Builds are signed with `android/app/sideload.keystore`, a test key committed on
+purpose so each new APK installs over the previous one. Before publishing to Google Play,
+create a private upload key, keep it out of git, and switch `signingConfigs` to read it from
+CI secrets.
+
 ## Run
 
 Camera access needs HTTPS (or `localhost`). You can serve the folder with any static host, such
@@ -92,3 +120,5 @@ npm test   # unit tests for rules, geometry, pixel checks and enhancement (Node 
 - `js/face.js`: MediaPipe face landmarker + background segmenter
 - `js/spec.js`: country rules, crop geometry and checks (pure, unit tested)
 - `js/enhance.js`: light/contrast/sharpen and mask helpers (pure, unit tested)
+- `js/platform.js`: saving files (native in the Android app, share/download on the web)
+- `scripts/build-web.mjs`, `capacitor.config.json`, `android/`: Android app
