@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   COUNTRIES, layout, headGeometry, autoTransform, mapPoint, unmapPoint, panTransform, coverTransform,
   coversImage, regionStats, anchorTransform, mergeStats, geometryChecks, lightingChecks, sheetLayout,
-  setJpegDpi,
+  setJpegDpi, isSkin, skinPatch, shadowScore, SHADOW_MAX_RATIO, SHADOW_STRONG_RATIO,
 } from '../js/spec.js';
 
 const near = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
@@ -160,4 +160,48 @@ test('regionStats reports mean colour', () => {
 test('UK digital photos are exported uncropped', () => {
   assert.equal(COUNTRIES.uk.digital.uncropped, true);
   assert.ok(COUNTRIES.uk.digital.minBytes >= 50 * 1024);
+});
+
+test('skin filter keeps skin tones and rejects hair, walls and blue shirts', () => {
+  for (const [r, g, b] of [[224, 172, 140], [160, 110, 80], [95, 60, 45]]) assert.ok(isSkin(r, g, b), `${r},${g},${b}`);
+  for (const [r, g, b] of [[20, 18, 18], [235, 235, 232], [90, 110, 150]]) assert.ok(!isSkin(r, g, b), `${r},${g},${b}`);
+});
+
+function patchImage(w, h, fill) {
+  const d = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const [r, g, b] = fill(x, y);
+    d.set([r, g, b, 255], (y * w + x) * 4);
+  }
+  return d;
+}
+
+test('skinPatch reports the median skin brightness and skin share', () => {
+  const d = patchImage(20, 20, (x) => (x < 10 ? [200, 150, 120] : [20, 18, 18]));
+  const left = skinPatch(d, 20, 5, 10, 4);
+  assert.ok(left.skin > 0.95);
+  const hair = skinPatch(d, 20, 15, 10, 4);
+  assert.equal(hair.skin, 0);
+});
+
+test('shadowScore uses the median pair and needs three usable pairs', () => {
+  const spot = (median, skin = 1) => ({ median, skin });
+  const even = shadowScore([
+    { name: 'forehead', a: spot(100), b: spot(160) }, // one spot under a fringe
+    { name: 'uppercheek', a: spot(150), b: spot(155) },
+    { name: 'nose', a: spot(150), b: spot(160) },
+    { name: 'cheek', a: spot(150), b: spot(152) },
+  ]);
+  assert.ok(even.score < SHADOW_MAX_RATIO);
+  const shadowed = shadowScore([
+    { name: 'uppercheek', a: spot(110), b: spot(160) },
+    { name: 'nose', a: spot(100), b: spot(150) },
+    { name: 'cheek', a: spot(120), b: spot(160) },
+  ]);
+  assert.ok(shadowed.score > SHADOW_STRONG_RATIO);
+  assert.equal(shadowed.darker, 'a');
+  assert.equal(shadowScore([{ name: 'nose', a: spot(100), b: spot(150) }, { name: 'cheek', a: spot(1, 0), b: spot(1) }]), null);
+  const c = lightingChecks({ faceLeft: { mean: 130 }, faceRight: { mean: 150 }, shadow: shadowed }).find((x) => x.id === 'even');
+  assert.equal(c.ok, false);
+  assert.match(c.hint, /Shadow on one side/);
 });

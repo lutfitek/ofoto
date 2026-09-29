@@ -124,6 +124,14 @@ export const BG_MAX_STD = 24;
 export const FACE_MIN_LUMA = 80;
 export const FACE_MAX_LUMA = 220;
 export const FACE_MAX_SIDE_DIFF = 30;
+// Shadow check on mirror-image skin spots: the median left/right difference
+// across spots may be at most this (relative). Evenly lit test photos score
+// 4–11 %, side-lit ones 13–20 %.
+export const SHADOW_MAX_RATIO = 0.13;
+export const SHADOW_STRONG_RATIO = 0.2;
+// A spot counts only if at least this share of its pixels look like skin
+// (hair, beard, brows or glasses over it make it unusable, not "shadowed").
+export const SKIN_MIN_FRACTION = 0.35;
 export const SCENE_DARK_LUMA = 70;
 
 export const MAX_ROLL_DEG = 3;
@@ -297,6 +305,55 @@ export function mergeStats(list) {
   };
 }
 
+// Skin-tone test in YCbCr: covers light to dark skin, excludes hair, beard,
+// brows, white/grey walls and most clothing.
+export function isSkin(r, g, b) {
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+  return y >= 25 && cr >= 135 && cr <= 180 && cb >= 80 && cb <= 135;
+}
+
+// Median luminance of the skin pixels in a round patch, and how much of the
+// patch is skin. Medians ignore stray dark hairs or specular highlights.
+export function skinPatch(data, width, cx, cy, r) {
+  const height = Math.floor(data.length / 4 / width);
+  const lumas = [];
+  let total = 0;
+  for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(height - 1, Math.ceil(cy + r)); y++) {
+    for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(width - 1, Math.ceil(cx + r)); x++) {
+      if ((x - cx) ** 2 + (y - cy) ** 2 > r * r) continue;
+      const i = (y * width + x) * 4;
+      if (data[i + 3] < 128) continue;
+      total++;
+      const R = data[i], G = data[i + 1], B = data[i + 2];
+      if (isSkin(R, G, B)) lumas.push(0.2126 * R + 0.7152 * G + 0.0722 * B);
+    }
+  }
+  if (!lumas.length) return { median: 0, skin: 0, n: total };
+  lumas.sort((p, q) => p - q);
+  return { median: lumas[lumas.length >> 1], skin: lumas.length / total, n: total };
+}
+
+// Compare mirror-image spots. Returns the median relative difference over
+// usable pairs (robust to one spot under a fringe or glasses) and the worst
+// pair for the visual cue, or null with fewer than three usable pairs.
+export function shadowScore(pairs) {
+  const usable = pairs
+    .filter(({ a, b }) => a.skin >= SKIN_MIN_FRACTION && b.skin >= SKIN_MIN_FRACTION && a.median > 0 && b.median > 0)
+    .map(({ name, a, b }) => ({
+      name,
+      ratio: Math.abs(a.median - b.median) / Math.max(a.median, b.median),
+      darker: a.median < b.median ? 'a' : 'b',
+    }))
+    .sort((p, q) => p.ratio - q.ratio);
+  if (usable.length < 3) return null;
+  const mid = usable.length >> 1;
+  const score = usable.length % 2 ? usable[mid].ratio : (usable[mid - 1].ratio + usable[mid].ratio) / 2;
+  const worst = usable[usable.length - 1];
+  return { score, name: worst.name, ratio: worst.ratio, darker: worst.darker, count: usable.length };
+}
+
 const check = (id, ok, label, hint, cue) => ({ id, ok, label, hint: ok ? '' : hint, cue: ok ? null : cue });
 
 // Geometry checks for a face in output units. `cue` tells the overlay which
@@ -340,7 +397,10 @@ export function geometryChecks(g, L, { mirrored = false } = {}) {
 }
 
 // Pixel checks from stats of the background patches, face halves and scene.
-export function lightingChecks({ bg, faceLeft, faceRight, scene }, background = 'white') {
+const SPOT_NAMES = {
+  forehead: 'forehead', uppercheek: 'under the eye', nose: 'beside the nose', cheek: 'cheek',
+};
+export function lightingChecks({ bg, faceLeft, faceRight, scene, shadow }, background = 'white') {
   const out = [];
   if (scene && !(faceLeft && faceRight)) {
     out.push(check('dark', scene.mean >= SCENE_DARK_LUMA, 'Enough light',
@@ -372,8 +432,22 @@ export function lightingChecks({ bg, faceLeft, faceRight, scene }, background = 
       'Too dark – turn on lights or face a window', 'dark'));
     out.push(check('bright', mean <= FACE_MAX_LUMA, 'Face not overexposed',
       'Face overexposed – soften the light', 'dark'));
-    out.push(check('even', Math.abs(faceLeft.mean - faceRight.mean) <= FACE_MAX_SIDE_DIFF,
-      'Even light on face', 'Uneven light – shadow on one side of face', 'dark'));
+    if (shadow) {
+      // Spot-by-spot comparison (preferred): catches nose and cheek shadows
+      // that averaging whole face halves smooths away.
+      const pct = Math.round(shadow.score * 100);
+      const where = SPOT_NAMES[shadow.name] ?? shadow.name;
+      const c = check('even', shadow.score <= SHADOW_MAX_RATIO, `Even light on face (${pct}% side difference)`,
+        shadow.score > SHADOW_STRONG_RATIO
+          ? `Shadow on one side of the face (${where}) – face the light or add light on the dark side`
+          : `Slightly uneven light (${pct}% darker on one side) – turn a little toward the light`,
+        'shadow');
+      c.shadow = shadow;
+      out.push(c);
+    } else {
+      out.push(check('even', Math.abs(faceLeft.mean - faceRight.mean) <= FACE_MAX_SIDE_DIFF,
+        'Even light on face', 'Uneven light – shadow on one side of face', 'dark'));
+    }
   }
   return out;
 }

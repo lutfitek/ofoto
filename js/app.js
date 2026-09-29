@@ -1,10 +1,10 @@
 import {
   COUNTRIES, PRINT_DPI, MAX_EYE_BLINK, layout, headGeometry, geometryChecks, lightingChecks,
-  regionStats, mergeStats, mapPoint, unmapPoint, panTransform, anchorTransform, autoTransform,
+  regionStats, mergeStats, skinPatch, shadowScore, mapPoint, unmapPoint, panTransform, anchorTransform, autoTransform,
   coverTransform, coversImage, sheetLayout, setJpegDpi,
 } from './spec.js';
 import { NEUTRAL, isNeutral, autoEnhance, applyEnhance, maskToAlpha } from './enhance.js';
-import { loadFaceDetector, faceDetectorReady, detectFace, segmentBackground, segModelSize } from './face.js';
+import { loadFaceDetector, faceDetectorReady, detectFace, segmentBackground, segModelSize, SKIN_PAIRS } from './face.js';
 import { saveFile, isNative } from './platform.js';
 
 // One screen: the photo frame (live camera or captured photo), a guidance
@@ -21,7 +21,7 @@ const workCtx = work.getContext('2d', { willReadFrequently: true });
 
 const TIMERS = [0, 3, 10];
 const AUTO_HOLD_MS = 1200;
-const ANALYSIS_H = 180;
+const ANALYSIS_H = 320; // px; tall enough for the skin-spot shadow check
 
 // Which problem the bubble talks about first.
 const PRIORITY = ['face', 'single', 'dark', 'bright', 'size', 'frame', 'body', 'center', 'eyes', 'top',
@@ -98,6 +98,9 @@ const state = {
   digitalBlob: null,
   printBlob: null,
   wakeLock: null,
+  capturing: false,
+  // Full-resolution stills via ImageCapture, when the phone supports them.
+  still: { ic: null, size: '', failures: 0, note: 'Checking…' },
   detectEvery: 80, // ms between live detections; grows on slow phones
 };
 
@@ -238,7 +241,7 @@ function photoHint(c) {
     case 'bg-plain': return state.country.id === 'us'
       ? 'Background – retake against a plain white wall (US rejects edited backgrounds)'
       : 'Background – replace it in Settings, or retake by a plain wall';
-    case 'even': return 'Shadow on face – retake facing the light';
+    case 'even': return `Retake: ${c.hint}`;
     default: return `Retake: ${c.hint}`;
   }
 }
@@ -330,6 +333,7 @@ async function startCamera() {
   video.srcObject = state.stream;
   await video.play().catch(() => {});
   keepAwake(true);
+  detectStillSupport(state.stream.getVideoTracks()[0]);
   requestAnimationFrame(camLoop);
 }
 
@@ -446,7 +450,7 @@ function camLoop(now) {
   }
   checks.push(...state.pixelChecks);
 
-  if (state.counting) return;
+  if (state.counting || state.capturing) return;
   const allGood = guide(g, checks, faceDetectorReady());
   if ($('auto').checked && allGood && $('intro').hidden && !sheetOpen()) {
     state.goodSince ||= now;
@@ -488,6 +492,8 @@ $('btn-timer').addEventListener('click', () => {
   $('timer-label').textContent = s ? `${s}s` : 'Off';
 });
 $('auto').checked = prefs.get('auto') !== '0';
+$('hires').checked = prefs.get('hires') !== '0';
+$('hires').addEventListener('change', () => prefs.set('hires', $('hires').checked ? '1' : '0'));
 $('auto').addEventListener('change', () => prefs.set('auto', $('auto').checked ? '1' : '0'));
 
 $('btn-flip').addEventListener('click', () => {
@@ -496,13 +502,92 @@ $('btn-flip').addEventListener('click', () => {
   startCamera();
 });
 
-function capture() {
-  if (!video.videoWidth) return;
+function grabFrame() {
   const c = document.createElement('canvas');
   c.width = video.videoWidth;
   c.height = video.videoHeight;
   c.getContext('2d').drawImage(video, 0, 0); // stored un-mirrored, as others see you
-  openPhoto(c);
+  return c;
+}
+
+// Check whether this camera can take stills sharper than the preview.
+async function detectStillSupport(track) {
+  const st = state.still;
+  st.ic = null;
+  st.size = '';
+  if (st.failures >= 2) st.note = 'Turned off after failed attempts on this phone';
+  else if (!('ImageCapture' in window)) st.note = 'Not supported on this phone – using the preview frame';
+  else {
+    try {
+      const ic = new ImageCapture(track);
+      const caps = await ic.getPhotoCapabilities();
+      const w = caps.imageWidth?.max ?? 0;
+      const h = caps.imageHeight?.max ?? 0;
+      const preview = Math.max(video.videoWidth, video.videoHeight);
+      if (Math.max(w, h) > preview * 1.2) {
+        st.ic = ic;
+        st.size = `${w} × ${h}`;
+        st.note = `Supported – ${st.size} instead of ${video.videoWidth} × ${video.videoHeight}`;
+      } else {
+        st.note = 'Stills are no sharper than the preview on this phone';
+      }
+    } catch {
+      st.note = 'Not supported on this camera – using the preview frame';
+    }
+  }
+  $('hires-status').textContent = st.note;
+}
+
+const useStill = () => state.still.ic && $('hires').checked && state.still.failures < 2;
+
+// Take a full-resolution still; resolves to a canvas (≤ 3000 px) or null.
+async function takeStill() {
+  const blob = await Promise.race([
+    state.still.ic.takePhoto(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
+  ]);
+  const bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  const k = Math.min(1, 3000 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k);
+  c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close?.();
+  return c;
+}
+
+// Capture: grab the preview frame at once (never lost), then try a sharper
+// still and keep it only if it matches the frame's orientation and a face is
+// found in it. Any failure falls back to the frame.
+async function capture() {
+  if (!video.videoWidth || state.capturing) return;
+  state.capturing = true;
+  const frame = grabFrame();
+  let src = frame;
+  let det = null;
+  if (useStill()) {
+    $('bubble-title').textContent = 'Taking a full-resolution photo – hold still…';
+    try {
+      const still = await takeStill();
+      const sameShape = (still.width > still.height) === (frame.width > frame.height);
+      det = sameShape && faceDetectorReady() ? detectFace(still, still.width, still.height, { still: true }) : null;
+      if (sameShape && (!faceDetectorReady() || det?.face)) {
+        src = still;
+        state.still.failures = 0;
+      } else {
+        det = null;
+        state.still.failures++;
+      }
+    } catch {
+      state.still.failures++;
+    }
+    if (state.still.failures >= 2) {
+      state.still.note = 'Turned off after failed attempts on this phone';
+      $('hires-status').textContent = state.still.note;
+    }
+  }
+  state.capturing = false;
+  if (state.mode === 'live') openPhoto(src, det);
 }
 
 async function loadFile(e) {
@@ -562,7 +647,27 @@ function measurePixels(ctx, w, h, faceU, g, background) {
   const halves = faceHalves(faceU, g);
   const faceLeft = halves && regionStats(data, w, R(halves[0]));
   const faceRight = halves && regionStats(data, w, R(halves[1]));
-  return lightingChecks({ bg, faceLeft, faceRight, scene }, background);
+
+  // Shadow check: compare mirror-image skin spots across the face.
+  let shadow = null;
+  const spotR = g ? g.eyeDist * 0.11 : 0;
+  if (faceU?.skin_nose_a && spotR * h >= 3) {
+    const pairs = Object.keys(SKIN_PAIRS).map((name) => {
+      const pa = faceU[`skin_${name}_a`];
+      const pb = faceU[`skin_${name}_b`];
+      return {
+        name,
+        a: skinPatch(data, w, pa.x * h, pa.y * h, spotR * h),
+        b: skinPatch(data, w, pb.x * h, pb.y * h, spotR * h),
+      };
+    });
+    shadow = shadowScore(pairs);
+    if (shadow) {
+      shadow.spot = faceU[`skin_${shadow.name}_${shadow.darker}`];
+      shadow.r = spotR;
+    }
+  }
+  return lightingChecks({ bg, faceLeft, faceRight, scene, shadow }, background);
 }
 
 // ---------------------------------------------------------------- drawing
@@ -689,6 +794,17 @@ function drawGuides(canvas, g, checks, now) {
     grad.addColorStop(1, `rgba(255,176,32,${0.15 + 0.25 * pulse})`);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
+  }
+
+  if (cue === 'shadow') {
+    const sh = checks.find((c) => c.shadow && !c.ok)?.shadow;
+    if (sh?.spot) {
+      ctx.strokeStyle = AMBER;
+      ctx.lineWidth = lw * (1.5 + 2 * pulse);
+      ctx.beginPath();
+      ctx.arc(X(sh.spot.x), X(sh.spot.y), X(sh.r) * (1.6 + 0.4 * pulse), 0, Math.PI * 2);
+      ctx.stroke();
+    }
   }
 
   if (cue === 'raise' || cue === 'lower') {
@@ -825,7 +941,7 @@ requestAnimationFrame(overlayLoop);
 
 // ---------------------------------------------------------------- photo mode
 
-function openPhoto(src) {
+function openPhoto(src, knownDet = null) {
   state.src = src;
   state.det = null;
   state.mask = null;
@@ -833,7 +949,10 @@ function openPhoto(src) {
   state.autoEnhanced = false;
   $('bg-status').textContent = '';
   setMode('photo');
-  if (faceDetectorReady()) {
+  if (knownDet) {
+    state.det = knownDet;
+    state.detError = '';
+  } else if (faceDetectorReady()) {
     try {
       state.det = detectFace(src, src.width, src.height, { still: true });
       state.detError = '';
@@ -1082,7 +1201,7 @@ async function ensureMask() {
   if (state.mask || !state.src) return;
   const src = state.src;
   const status = $('bg-status');
-  status.textContent = `Finding you in the photo… (first time downloads a ${segModelSize} model)`;
+  status.textContent = `Finding you in the photo… (first time loads a ${segModelSize} model)`;
   try {
     const m = await segmentBackground(src);
     if (state.src !== src) return; // a new photo was taken meanwhile

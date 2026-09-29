@@ -14,9 +14,10 @@ const mp = join(root, 'node_modules/@mediapipe/tasks-vision');
 const MODELS = {
   'face_landmarker.task':
     'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-  // 0.25 MB instead of the 16 MB multiclass model used on the web.
-  'selfie_segmenter.tflite':
-    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite',
+  // Multiclass model (16 MB): separates hair from background, so edges
+  // around hair are much cleaner than with the 0.25 MB selfie model.
+  'selfie_multiclass_256x256.tflite':
+    'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite',
 };
 
 // Asset locations the app reads (see js/face.js).
@@ -25,10 +26,10 @@ const ASSETS = `<script>
     bundle: new URL('mediapipe/vision_bundle.mjs', document.baseURI).href,
     wasm: new URL('mediapipe/wasm', document.baseURI).href,
     faceModel: new URL('models/face_landmarker.task', document.baseURI).href,
-    segModel: new URL('models/selfie_segmenter.tflite', document.baseURI).href,
-    segModelSize: '0.25 MB',
-    segMaskIndex: 0,
-    segMaskIsBackground: false,
+    segModel: new URL('models/selfie_multiclass_256x256.tflite', document.baseURI).href,
+    segModelSize: '16 MB',
+    segMaskIndex: 0,          // class 0 = background
+    segMaskIsBackground: true,
   };
 </script>
 `;

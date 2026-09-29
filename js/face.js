@@ -28,7 +28,15 @@ const CHIN = 152;
 const NOSE_TIP = 1;
 const CHEEK_A = 234;
 const CHEEK_B = 454;
-
+// Mirror-image skin spots (image-left / image-right) used to check that the
+// face is evenly lit. Kept near the middle of the face: spots near the edge
+// darken with the face's curvature, and lower cheeks run into beards.
+export const SKIN_PAIRS = {
+  forehead: [108, 337],
+  uppercheek: [101, 330],
+  nose: [50, 280],
+  cheek: [205, 425],
+};
 let vision = null;
 let landmarker = null;      // VIDEO mode: tracks faces across camera frames
 let imageLandmarker = null; // IMAGE mode: independent detection for still photos
@@ -146,6 +154,10 @@ export function detectFace(source, width, height, { still = false } = {}) {
       nose: px(NOSE_TIP),
       cheekA: px(CHEEK_A),
       cheekB: px(CHEEK_B),
+      ...Object.fromEntries(Object.entries(SKIN_PAIRS).flatMap(([name, [a, b]]) => [
+        [`skin_${name}_a`, px(a)],
+        [`skin_${name}_b`, px(b)],
+      ])),
     },
   };
 }
