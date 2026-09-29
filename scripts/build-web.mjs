@@ -52,7 +52,7 @@ await rm(out, { recursive: true, force: true });
 await mkdir(join(out, 'mediapipe/wasm'), { recursive: true });
 await mkdir(join(out, 'models'), { recursive: true });
 
-for (const f of ['css', 'js', 'icon.svg', 'manifest.webmanifest']) {
+for (const f of ['css', 'js', 'icons', 'icon.svg', 'manifest.webmanifest']) {
   await cp(join(root, f), join(out, f), { recursive: true });
 }
 const html = await readFile(join(root, 'index.html'), 'utf8');
