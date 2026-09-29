@@ -1,0 +1,68 @@
+name: Android APK
+
+# Builds the Passport Photo Android app and publishes it as the
+# "android-test" pre-release, so the latest APK can be installed from a phone.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Cache MediaPipe models
+        uses: actions/cache@v4
+        with:
+          path: .models
+          key: mediapipe-models-v2
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:web
+      - run: npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Report APK size
+        run: ls -la android/app/build/outputs/apk/release/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: passport-photo-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+      - name: Publish test release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk passport-photo.apk
+          gh release delete android-test --yes --cleanup-tag || true
+          gh release create android-test passport-photo.apk \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Passport Photo – Android test build #${GITHUB_RUN_NUMBER}" \
+            --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Open this page on your phone, download passport-photo.apk and allow installing from your browser. Test build signed with a public key – not for Play Store."

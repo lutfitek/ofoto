@@ -87,7 +87,7 @@ and the two models into `www/`, and the app has no internet permission.
   Drive, messaging).
 - **Look:** portrait only, dark theme and splash, back gesture closes sheets.
 
-**Build.** Every push that touches `passport-photo/` builds a new APK in GitHub Actions
+**Build.** Every push to `main` builds a new APK in GitHub Actions
 (`.github/workflows/android.yml`). It's published as the **android-test** pre-release; open
 that release on the phone, download `passport-photo.apk` and install it.
 
