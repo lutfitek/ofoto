@@ -57,41 +57,73 @@ async function modelSource(url) {
   return { modelAssetBuffer: bytes };
 }
 
-async function withDelegate(create) {
-  try {
-    return await create('GPU');
-  } catch {
-    return create('CPU');
-  }
-}
+let createLandmarker = null;
+let videoDelegate = 'GPU';
+let emptyStreak = 0;
+let switchingToCpu = false;
 
 export async function loadFaceDetector() {
   const { mod, fileset } = await loadVision();
   const model = await modelSource(ASSETS.faceModel);
-  const create = (runningMode) => withDelegate((delegate) => mod.FaceLandmarker.createFromOptions(fileset, {
-    baseOptions: { ...model, delegate },
+  createLandmarker = (runningMode, delegate) => mod.FaceLandmarker.createFromOptions(fileset, {
+    // Copy the bytes: each task keeps its own model buffer.
+    baseOptions: { ...(model.modelAssetBuffer ? { modelAssetBuffer: model.modelAssetBuffer.slice() } : model), delegate },
     runningMode,
     numFaces: 2,
     outputFaceBlendshapes: true,
-  }));
-  imageLandmarker = await create('IMAGE');
-  landmarker = await create('VIDEO');
+  });
+  // Stills always run on the CPU: one frame is fast enough, and some Android
+  // GPUs silently return no faces with the GPU delegate.
+  imageLandmarker = await createLandmarker('IMAGE', 'CPU');
+  try {
+    landmarker = await createLandmarker('VIDEO', 'GPU');
+  } catch {
+    videoDelegate = 'CPU';
+    landmarker = await createLandmarker('VIDEO', 'CPU');
+  }
 }
 
 export const faceDetectorReady = () => landmarker !== null;
 
+// If the GPU tracker keeps finding nothing (a known failure on some phones),
+// swap in a CPU tracker once. Harmless when the frame really is empty.
+function noteLiveResult(found) {
+  emptyStreak = found ? 0 : emptyStreak + 1;
+  if (emptyStreak < 30 || videoDelegate !== 'GPU' || switchingToCpu) return;
+  switchingToCpu = true;
+  createLandmarker('VIDEO', 'CPU')
+    .then((cpu) => { landmarker = cpu; videoDelegate = 'CPU'; })
+    .catch(() => {})
+    .finally(() => { switchingToCpu = false; });
+}
+
+// Photos are detected on a copy no larger than this (faster, less memory).
+const STILL_MAX = 1280;
+
+function downscaled(source, width, height) {
+  const k = Math.min(1, STILL_MAX / Math.max(width, height));
+  if (k === 1) return source;
+  const c = document.createElement('canvas');
+  c.width = Math.round(width * k);
+  c.height = Math.round(height * k);
+  c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+  return c;
+}
+
 // Detect faces in a live video frame (tracked between calls) or, with
 // `still`, in a single photo. Points are returned in source pixels:
 // { count, face: { eyeA, eyeB, chin, nose, cheekA, cheekB }, blink }.
+// Landmarks are normalised, so a downscaled copy maps straight back.
 export function detectFace(source, width, height, { still = false } = {}) {
   if (!landmarker) return null;
   let res;
   if (still) {
-    res = imageLandmarker.detect(source);
+    res = imageLandmarker.detect(downscaled(source, width, height));
   } else {
     const ts = Math.max(performance.now(), lastTs + 1);
     lastTs = ts;
     res = landmarker.detectForVideo(source, ts);
+    noteLiveResult(res.faceLandmarks.length > 0);
   }
   const count = res.faceLandmarks.length;
   if (!count) return { count: 0, face: null, blink: 0 };
@@ -122,12 +154,13 @@ export function loadSegmenter() {
   segmenterLoading ||= (async () => {
     const { mod, fileset } = await loadVision();
     const model = await modelSource(ASSETS.segModel);
-    segmenter = await withDelegate((delegate) => mod.ImageSegmenter.createFromOptions(fileset, {
-      baseOptions: { ...model, delegate },
+    // CPU for the same reason as face stills: reliable on every phone.
+    segmenter = await mod.ImageSegmenter.createFromOptions(fileset, {
+      baseOptions: { ...model, delegate: 'CPU' },
       runningMode: 'IMAGE',
       outputConfidenceMasks: true,
       outputCategoryMask: false,
-    }));
+    });
   })();
   segmenterLoading.catch(() => { segmenterLoading = null; });
   return segmenterLoading;

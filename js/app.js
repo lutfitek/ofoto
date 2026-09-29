@@ -147,6 +147,7 @@ function photoHint(c) {
       : 'Taken too close – no room around the head. Retake from further back';
     case 'pitch': return 'Camera was below/above eye level – retake with the phone at eye level';
     case 'res': return 'Too far – not enough detail. Retake closer';
+    case 'face': return c.hint;
     case 'open':
     case 'facing':
     case 'single': return `Retake: ${c.hint}`;
@@ -715,7 +716,14 @@ function openPhoto(src) {
   $('bg-status').textContent = '';
   setMode('photo');
   if (faceDetectorReady()) {
-    try { state.det = detectFace(src, src.width, src.height, { still: true }); } catch { state.det = null; }
+    try {
+      state.det = detectFace(src, src.width, src.height, { still: true });
+      state.detError = '';
+    } catch (err) {
+      state.det = null;
+      state.detError = err?.message || String(err);
+      console.warn('Face detection failed:', err);
+    }
   }
   autoFit();
   maybeAutoEnhance();
@@ -807,7 +815,9 @@ function renderPhotoView() {
     checks.push(...geometryChecks(g, L));
     checks.push(mkCheck('open', state.det.blink < MAX_EYE_BLINK, 'Eyes open', 'Keep both eyes open'));
   } else if (faceDetectorReady()) {
-    checks.push(mkCheck('face', false, 'Face found', 'No face found – line it up manually'));
+    checks.push(mkCheck('face', false, 'Face found', state.detError
+      ? `Face detector error: ${state.detError}`
+      : 'No face found – use a clear, front-facing photo'));
   }
   const headOk = !checks.some((c) => c.id === 'size' && !c.ok);
   checks.push(mkCheck('fill', coversImage(t, src.width, src.height), 'Photo fills the frame',
