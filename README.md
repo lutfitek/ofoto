@@ -1,43 +1,79 @@
-# US Passport Photo Helper
+# Passport Photo Helper
 
-A phone web app for taking a US passport photo that meets the
-[State Department photo requirements](https://travel.state.gov/en/passports/apply/help/photos.html).
-It runs entirely in the browser. Photos never leave the device.
+A phone web app that guides you to a compliant passport or visa photo. It runs entirely in the
+browser. Photos never leave the device.
 
-## What it does
+Supported documents (pick one in **⋯ Settings → Document**):
 
-1. **Camera with live guidance.** It overlays the target head outline and the allowed eye band
-   (1 1/8 – 1 3/8 in from the bottom). It tracks the face and gives live hints like "Move closer",
-   "Keep head straight", "Background too dark" or "Uneven light". **Auto** takes the picture once
-   everything has been green for about a second. There's also a 3 s / 10 s timer, a front/rear
-   camera switch, and an upload button for existing photos.
-2. **Auto-crop and adjust.** It levels the eyes and scales the head to 1.2 in (60% of the photo).
-   The eyes land 1.2 in from the bottom. You can fine-tune by dragging, pinching or using the
-   sliders. The checks re-run as you adjust.
-3. **Export.**
-   - Digital: a 1200 × 1200 JPEG for online renewal.
-   - Print: a 4 × 6 in sheet at 300 dpi with two 2 × 2 in photos and cut lines. Print it at
-     actual size on photo paper.
+| | Size | Head (chin–crown) | Other placement | Background |
+|---|---|---|---|---|
+| 🇺🇸 United States ([rules](https://travel.state.gov/en/passports/apply/help/photos.html)) | 2 × 2 in (51 × 51 mm) | 25–35 mm (50–69%) | eyes 28–35 mm from bottom | white / off-white |
+| 🇬🇧 United Kingdom ([rules](https://www.passport.service.gov.uk/photo/how-to-take-a-photo)) | 35 × 45 mm | 29–34 mm | – | plain light colour (cream, light grey) |
+| 🇲🇾 Malaysia eVisa ([rules](https://malaysiavisa.imi.gov.my/evisa/check-photo)) | 35 × 50 mm | 30–35 mm | ≥ 5 mm above head | white |
+
+## How it works
+
+One screen, three buttons:
+
+```
+┌───────────────────┐
+│  photo frame      │  live camera, or the captured photo (drag / pinch to adjust)
+│   ( oval guide )  │  pulsing red arrows / lines show what to move
+└───────────────────┘
+   ( ✓ bubble )        what to fix next → big green ✓ when the photo meets the rules
+[ Upload ] [ ◉ ] [ ⋯ ]  upload · capture / save · settings
+```
+
+- **When the camera turns on**, it shows how-to instructions for the selected country (dismissable).
+- **Live guidance.** The app tracks the face and finds the most important problem, like
+  *Too far – move closer*, *Too dark*, *Camera too low*, *Keep head straight* or
+  *Background not plain*. It shows it in the bubble and animates a cue in the frame:
+  - Arrows point out or in when you need to move closer or back.
+  - The eye band pulses when the eyes are too high or low.
+  - An arrow points toward the center line when the face is off-center.
+  - A curved arrow shows which way to straighten a tilted head.
+  - Side arrows tell you to raise or lower the phone.
+  - A warm glow means it's too dark.
+  - Highlighted background patches point at clutter or shadows.
+
+  Serious problems (too dark, too far) make the frame glow red. When everything passes, the
+  bubble turns into a green ✓ and, with auto-capture on, the photo is taken after about 1 s of
+  holding still.
+- **Captured / uploaded photo.** Auto-crop levels the eyes and sizes and places the head per the
+  country's rules. If the photo is dark or flat it is auto-enhanced (light/contrast/sharpen). The
+  same checks run again, with photo-specific hints (*Drag the photo up*, *Taken too close –
+  retake from further back*, and so on).
+- **⋯ Settings:**
+  - document/country and rules
+  - camera flip, timer, auto-capture
+  - zoom/rotate and auto-crop
+  - enhance (light, contrast, sharpen; ✨ Auto; Original)
+  - background replace (white, off-white, light grey, cream) or remove (transparent PNG)
+  - digital file-size limit
+- **Save:**
+  - the digital JPEG in the country's pixel size
+  - a 4 × 6 in print sheet at 300 dpi with as many photos as fit and cut lines
+  - a transparent PNG cut-out, when the background was removed
 
 ## Checks
 
-| Automatic | Manual (listed in the app) |
+| Automatic | Manual (listed when saving) |
 |---|---|
-| Head size 1 – 1 3/8 in (50–69%) | No glasses |
-| Eyes 1 1/8 – 1 3/8 in from bottom | Neutral expression, mouth closed |
-| Face centered, whole head in frame | No hat / head covering, no headphones |
-| Head level, facing camera, eyes open, one person | Everyday clothes, no uniform |
-| White/off-white, plain background | Sharp photo, taken within 6 months |
-| Face exposure and even lighting (no side shadow) | |
+| One face, head size, eye height / top margin, centered, whole head in frame | No glasses / glare |
+| Head level, facing camera, camera at eye level, eyes open | Neutral expression, mouth closed |
+| Background colour and plainness | No hat or head covering (unless religious/medical) |
+| Face exposure, even light (no side shadow) | Sharp, recent photo |
+| Photo fills the frame, enough resolution | |
 
-Face tracking uses the [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker),
-which the app loads from a CDN. Landmarks stop at the hairline, so the top of the head is
-estimated from the eye-to-chin distance. Check the crown against the oval. If the model can't
-load, the app still works with manual alignment.
+Face tracking uses the MediaPipe Face Landmarker, and background replacement uses the MediaPipe
+selfie multiclass segmenter. Both load from a CDN; the segmenter (~16 MB) only loads the first
+time you replace a background. Landmarks stop at the hairline, so the top of the head is
+estimated from the eye-to-chin distance. The "camera at eye level" check compares where the nose
+tip sits between the eyes and the chin.
 
-The app only crops, rotates and scales. It never retouches, filters or replaces the background,
-because the State Department doesn't accept digitally altered photos. It's a helper: the passport
-agency makes the final call.
+**Retouching warning.** The US and UK both forbid digitally altered photos. When enhancement or
+background replacement is on, the app says so. Retaking in good light against a plain wall is
+always the safest option. The app is a helper; the issuing agency makes the final decision.
 
 ## Run
 
@@ -46,12 +82,13 @@ as GitHub Pages, Netlify or `npm start` (runs `python3 -m http.server 8080`), th
 your phone.
 
 ```sh
-npm test   # unit tests for the geometry / pixel math (Node 20+)
+npm test   # unit tests for rules, geometry, pixel checks and enhancement (Node 20+)
 ```
 
 ## Files
 
-- `index.html`, `css/style.css`: UI (camera → adjust → export)
-- `js/app.js`: camera, gestures, rendering, exports
-- `js/face.js`: MediaPipe wrapper
-- `js/spec.js`: requirements, crop geometry and image checks (pure, unit tested)
+- `index.html`, `css/style.css`: single-screen UI, settings/save sheets
+- `js/app.js`: camera, guidance, gestures, rendering, export
+- `js/face.js`: MediaPipe face landmarker + background segmenter
+- `js/spec.js`: country rules, crop geometry and checks (pure, unit tested)
+- `js/enhance.js`: light/contrast/sharpen and mask helpers (pure, unit tested)
