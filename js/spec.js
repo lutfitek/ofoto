@@ -25,7 +25,7 @@ export const COUNTRIES = {
     bgLabel: 'plain white or off-white',
     replaceColor: '#ffffff',
     digital: { w: 1200, h: 1200, minH: 600, label: '1200 × 1200 JPEG (600–1200 px square)' },
-    noAlteration: 'US rules: photos must not be digitally altered or filtered.',
+    noAlteration: 'US: retouched or background-replaced photos are rejected, and uploads are screened automatically. Retake against a plain white wall instead.',
     rules: [
       ['Size', '2 × 2 in (51 × 51 mm), color'],
       ['Head', '1 – 1 3/8 in (25 – 35 mm) chin to top of head incl. hair (50–69% of height)'],
@@ -55,7 +55,11 @@ export const COUNTRIES = {
     background: 'light',                   // cream, light grey, shades of white
     bgLabel: 'plain light colour (cream, light grey or off-white)',
     replaceColor: '#e4e4e2',
-    digital: { w: 700, h: 900, minH: 750, label: '700 × 900 JPEG (min. 600 × 750, 50 KB – 10 MB)' },
+    // Online applications want the photo uncropped: HM Passport Office crops it.
+    digital: {
+      uncropped: true, minW: 600, minH: 750, maxLong: 2400, minBytes: 50 * 1024,
+      label: 'Uncropped JPEG with head, shoulders and upper body (min 600 × 750 px, 50 KB – 10 MB)',
+    },
     noAlteration: 'UK rules: photos must not be altered using computer software.',
     rules: [
       ['Size', '35 mm wide × 45 mm high, color'],
@@ -67,7 +71,8 @@ export const COUNTRIES = {
       ['Lighting', 'no shadows on face or behind you'],
       ['Not allowed', 'head coverings (unless religious or medical), sunglasses/tinted glasses, glare on glasses'],
       ['Recent', 'taken in the last month'],
-      ['Digital', 'at least 600 × 750 px, 50 KB – 10 MB JPEG'],
+      ['Digital', 'do not crop – include head, shoulders and upper body; at least 600 × 750 px, 50 KB – 10 MB'],
+      ['Print', '35 × 45 mm printed photos for paper applications'],
     ],
   },
   my: {
@@ -83,16 +88,17 @@ export const COUNTRIES = {
     topMinMm: 5,
     targetHeadMm: 32,
     targetTopMm: 6,
-    background: 'white',
-    bgLabel: 'plain white',
+    background: 'whiteOrBlue',
+    bgLabel: 'plain white or blue',
     replaceColor: '#ffffff',
+    extraBackgrounds: ['#1f5fbf'],
     digital: { w: 827, h: 1181, minH: 591, label: '827 × 1181 JPEG (35 × 50 mm at 600 dpi)' },
     noAlteration: 'Uploads are validated automatically – keep edits natural.',
     rules: [
       ['Size', '35 mm wide × 50 mm high, color'],
       ['Head', 'about 30 – 35 mm chin to crown, whole head incl. hairline visible'],
       ['Top margin', 'top of head at least 5 mm below the top edge'],
-      ['Background', 'plain white, uniform – no gradients, patterns, objects, shadows or reflections'],
+      ['Background', 'plain white or blue, uniform – no gradients, patterns, objects, shadows or reflections'],
       ['Pose', 'face the camera directly, neutral expression, eyes open'],
       ['Validation', 'eVisa uploads are checked automatically against these specifications'],
     ],
@@ -111,6 +117,9 @@ export const BG = {
   white: { minLuma: 170, maxSat: 35 },
   light: { minLuma: 150, maxSat: 50 },
 };
+// A plain blue backdrop: blue clearly above red and green.
+export const BLUE_MIN_MARGIN = 25;
+export const isBlue = (s) => s.b - Math.max(s.r, s.g) >= BLUE_MIN_MARGIN;
 export const BG_MAX_STD = 24;
 export const FACE_MIN_LUMA = 80;
 export const FACE_MAX_LUMA = 220;
@@ -248,7 +257,7 @@ export function regionStats(data, width, rect) {
   const y0 = Math.max(0, Math.floor(rect.y));
   const x1 = Math.min(width, Math.floor(rect.x + rect.w));
   const y1 = Math.min(height, Math.floor(rect.y + rect.h));
-  let n = 0, sum = 0, sum2 = 0, sat = 0;
+  let n = 0, sum = 0, sum2 = 0, sat = 0, sr = 0, sg = 0, sb = 0;
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       const i = (y * width + x) * 4;
@@ -258,26 +267,34 @@ export function regionStats(data, width, rect) {
       sum += l;
       sum2 += l * l;
       sat += Math.max(r, g, b) - Math.min(r, g, b);
+      sr += r; sg += g; sb += b;
       n++;
     }
   }
-  if (!n) return { mean: 0, std: 0, sat: 0, n: 0 };
+  if (!n) return { mean: 0, std: 0, sat: 0, r: 0, g: 0, b: 0, n: 0 };
   const mean = sum / n;
-  return { mean, std: Math.sqrt(Math.max(0, sum2 / n - mean * mean)), sat: sat / n, n };
+  return {
+    mean, std: Math.sqrt(Math.max(0, sum2 / n - mean * mean)), sat: sat / n,
+    r: sr / n, g: sg / n, b: sb / n, n,
+  };
 }
 
 // Pool several regionStats results into one (as if measured together).
 export function mergeStats(list) {
-  let n = 0, sum = 0, sum2 = 0, sat = 0;
+  let n = 0, sum = 0, sum2 = 0, sat = 0, sr = 0, sg = 0, sb = 0;
   for (const s of list) {
     n += s.n;
     sum += s.mean * s.n;
     sum2 += (s.std * s.std + s.mean * s.mean) * s.n;
     sat += s.sat * s.n;
+    sr += (s.r ?? 0) * s.n; sg += (s.g ?? 0) * s.n; sb += (s.b ?? 0) * s.n;
   }
-  if (!n) return { mean: 0, std: 0, sat: 0, n: 0 };
+  if (!n) return { mean: 0, std: 0, sat: 0, r: 0, g: 0, b: 0, n: 0 };
   const mean = sum / n;
-  return { mean, std: Math.sqrt(Math.max(0, sum2 / n - mean * mean)), sat: sat / n, n };
+  return {
+    mean, std: Math.sqrt(Math.max(0, sum2 / n - mean * mean)), sat: sat / n,
+    r: sr / n, g: sg / n, b: sb / n, n,
+  };
 }
 
 const check = (id, ok, label, hint, cue) => ({ id, ok, label, hint: ok ? '' : hint, cue: ok ? null : cue });
@@ -330,10 +347,21 @@ export function lightingChecks({ bg, faceLeft, faceRight, scene }, background = 
       'Too dark – turn on lights or face a window', 'dark'));
   }
   if (bg?.n) {
-    const rule = BG[background];
-    const label = background === 'white' ? 'White background' : 'Light plain background';
-    out.push(check('bg-color', bg.mean >= rule.minLuma && bg.sat <= rule.maxSat, label,
-      bg.mean < rule.minLuma ? 'Background too dark – use a light wall & more light' : 'Background is tinted – use a plain light wall',
+    const white = bg.mean >= BG.white.minLuma && bg.sat <= BG.white.maxSat;
+    let ok;
+    let label;
+    if (background === 'whiteOrBlue') {
+      ok = white || isBlue(bg);
+      label = 'White or blue background';
+    } else {
+      const rule = BG[background];
+      ok = bg.mean >= rule.minLuma && bg.sat <= rule.maxSat;
+      label = background === 'white' ? 'White background' : 'Light plain background';
+    }
+    out.push(check('bg-color', ok, label,
+      bg.mean < BG.light.minLuma && !isBlue(bg)
+        ? 'Background too dark – use a light wall & more light'
+        : 'Background colour is off – use a plain wall in the required colour',
       'bg'));
     out.push(check('bg-plain', bg.std <= BG_MAX_STD, 'Plain background, no shadows',
       'Background not plain – remove objects or shadows behind you', 'bg'));

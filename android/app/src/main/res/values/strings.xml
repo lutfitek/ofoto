@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Passport Photo</string>
+    <string name="title_activity_main">Passport Photo</string>
+    <string name="package_name">com.lutfitek.passportphoto</string>
+    <string name="custom_url_scheme">com.lutfitek.passportphoto</string>
+</resources>

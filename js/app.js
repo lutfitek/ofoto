@@ -5,6 +5,7 @@ import {
 } from './spec.js';
 import { NEUTRAL, isNeutral, autoEnhance, applyEnhance, maskToAlpha } from './enhance.js';
 import { loadFaceDetector, faceDetectorReady, detectFace, segmentBackground, segModelSize } from './face.js';
+import { saveFile, isNative } from './platform.js';
 
 // One screen: the photo frame (live camera or captured photo), a guidance
 // bubble that says what to fix next (green ✓ when compliant), and a dock with
@@ -23,13 +24,45 @@ const AUTO_HOLD_MS = 1200;
 const ANALYSIS_H = 180;
 
 // Which problem the bubble talks about first.
-const PRIORITY = ['face', 'single', 'dark', 'bright', 'size', 'frame', 'center', 'eyes', 'top',
+const PRIORITY = ['face', 'single', 'dark', 'bright', 'size', 'frame', 'body', 'center', 'eyes', 'top',
   'level', 'facing', 'pitch', 'open', 'fill', 'res', 'bg-color', 'bg-plain', 'even'];
-const ICONS = {
-  face: '👤', single: '👥', dark: '💡', bright: '🔆', size: '↔', frame: '⤢', center: '⇆',
-  eyes: '⇅', top: '⇅', level: '↻', facing: '👀', pitch: '📱', open: '👁', fill: '⤢', res: '🔍',
-  'bg-color': '🧱', 'bg-plain': '🧱', even: '🌗',
+
+// Line icons (SVG renders the same on every phone, unlike emoji).
+const GLYPHS = {
+  person: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.5 4.5-6.5 8-6.5s7 2 8 6.5"/>',
+  people: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.8"/><path d="M2.5 20c.8-4 3.6-5.8 6.5-5.8s5.7 1.8 6.5 5.8M15.5 14.4c2.7-.3 5 1.3 6 5"/>',
+  light: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+  expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  horizontal: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+  vertical: '<path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/>',
+  rotate: '<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5"/>',
+  eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M12 15V7M9.5 9.5 12 7l2.5 2.5"/>',
+  zoom: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M10.5 7.5v6M7.5 10.5h6"/>',
+  wall: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 10h18M3 15h18M9 4v6M15 10v5M9 15v5"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  alert: '<path d="M12 6.5v7.5M12 17.5v.5"/>',
+  camera: '<path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  dots: '<circle class="fill" cx="6" cy="12" r="1.6"/><circle class="fill" cx="12" cy="12" r="1.6"/><circle class="fill" cx="18" cy="12" r="1.6"/>',
 };
+const ICONS = {
+  face: 'person', single: 'people', dark: 'light', bright: 'light', even: 'light',
+  size: 'expand', frame: 'expand', fill: 'expand', body: 'expand', center: 'horizontal',
+  eyes: 'vertical', top: 'vertical', level: 'rotate', facing: 'eye', open: 'eye',
+  pitch: 'phone', res: 'zoom', 'bg-color': 'wall', 'bg-plain': 'wall',
+};
+const setIcon = (name) => {
+  $('bubble-icon').innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${GLYPHS[name] ?? GLYPHS.alert}</svg>`;
+};
+
+// Sections of the details panel under the bubble.
+const GROUPS = [
+  ['Framing', ['face', 'single', 'size', 'frame', 'body', 'center', 'eyes', 'top', 'fill', 'res']],
+  ['Pose', ['level', 'facing', 'pitch', 'open']],
+  ['Light', ['dark', 'bright', 'even']],
+  ['Background', ['bg-color', 'bg-plain']],
+];
+const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const WARN_IDS = new Set(['bg-color', 'bg-plain', 'even']);
 
 const state = {
@@ -64,6 +97,8 @@ const state = {
   // export
   digitalBlob: null,
   printBlob: null,
+  wakeLock: null,
+  detectEvery: 80, // ms between live detections; grows on slow phones
 };
 
 const mkCheck = (id, ok, label, hint, cue = null) => ({ id, ok, label, hint: ok ? '' : hint, cue: ok ? null : cue });
@@ -74,18 +109,60 @@ const prefs = {
 };
 const sheetOpen = () => $('settings').open || $('save').open || $('rules').open;
 
+// Back button / gesture: each sheet and the photo view is a history entry,
+// so Android's back closes the top one instead of leaving the app.
+const layers = [];
+let ignorePops = 0;
+function openLayer(name, close) {
+  layers.push({ name, close });
+  history.pushState({ layer: layers.length }, '');
+}
+function closeLayer(name) {
+  const i = layers.map((l) => l.name).lastIndexOf(name);
+  if (i < 0) return;
+  layers.splice(i, 1);
+  ignorePops++;
+  history.back();
+}
+window.addEventListener('popstate', () => {
+  if (ignorePops) { ignorePops--; return; }
+  layers.pop()?.close();
+});
+function openSheet(d) {
+  if (d.open) return;
+  d.showModal();
+  openLayer(d.id, () => d.close());
+}
+function closeSheet(d) {
+  if (d.open) d.close();
+}
+for (const d of document.querySelectorAll('dialog')) {
+  // Closed by its own button or the backdrop: drop its history entry.
+  d.addEventListener('close', () => closeLayer(d.id));
+}
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
 // ---------------------------------------------------------------- country
 
 const countrySelect = $('country');
 for (const c of Object.values(COUNTRIES)) countrySelect.add(new Option(`${c.flag} ${c.name} · ${c.sizeLabel}`, c.id));
 countrySelect.addEventListener('change', () => setCountry(countrySelect.value));
+const introCountry = $('intro-country');
+for (const c of Object.values(COUNTRIES)) introCountry.add(new Option(`${c.flag} ${c.name} · ${c.sizeLabel}`, c.id));
+introCountry.addEventListener('change', () => setCountry(introCountry.value));
 
 function setCountry(id) {
   const c = COUNTRIES[id] ?? COUNTRIES.us;
   state.country = c;
   state.L = layout(c);
   countrySelect.value = c.id;
+  $('intro-country').value = c.id;
   prefs.set('country', c.id);
+  // Extra background colours only where the rules allow them (Malaysia: blue).
+  for (const b of document.querySelectorAll('#bg-options .swatch[data-extra]')) {
+    b.hidden = !(c.extraBackgrounds ?? []).includes(b.dataset.bg);
+    if (b.hidden && state.bg === b.dataset.bg) selectBackground('original');
+  }
   document.documentElement.style.setProperty('--aspect', String(state.L.aspect));
   $('country-tag').textContent = `${c.flag} ${c.sizeLabel}`;
   $('rules-title').textContent = `${c.flag} ${c.name} photo rules`;
@@ -102,6 +179,7 @@ function setCountry(id) {
 function introSteps(c) {
   return [
     `Stand about 1–1.5 m (4 ft) in front of a <b>${c.bgLabel}</b> wall, with space behind you so there’s no shadow.`,
+    ...(c.digital.uncropped ? ['Keep your <b>head, shoulders and upper body</b> in the picture – the passport office crops the digital photo itself.'] : []),
     'Face a window or soft light. Avoid overhead or side light that casts shadows.',
     'Take off glasses and hats. Keep hair away from your eyes and face.',
     'Neutral expression, <b>mouth closed</b>, both eyes open, look straight into the lens.',
@@ -110,11 +188,13 @@ function introSteps(c) {
   ];
 }
 
-$('btn-rules').addEventListener('click', () => $('rules').showModal());
+$('btn-rules').addEventListener('click', () => openSheet($('rules')));
 
 // ---------------------------------------------------------------- modes
 
 function setMode(mode) {
+  if (mode === 'photo' && state.mode !== 'photo') openLayer('photo', () => setMode('live'));
+  if (mode === 'live') closeLayer('photo');
   state.mode = mode;
   const live = mode === 'live';
   video.hidden = !live;
@@ -147,14 +227,17 @@ function photoHint(c) {
       : 'Taken too close – no room around the head. Retake from further back';
     case 'pitch': return 'Camera was below/above eye level – retake with the phone at eye level';
     case 'res': return 'Too far – not enough detail. Retake closer';
-    case 'face': return c.hint;
+    case 'face':
+    case 'body': return c.hint;
     case 'open':
     case 'facing':
     case 'single': return `Retake: ${c.hint}`;
     case 'dark':
     case 'bright': return 'Lighting is off – try ✨ Auto enhance in Settings, or retake';
     case 'bg-color':
-    case 'bg-plain': return 'Background – replace it in Settings, or retake by a plain wall';
+    case 'bg-plain': return state.country.id === 'us'
+      ? 'Background – retake against a plain white wall (US rejects edited backgrounds)'
+      : 'Background – replace it in Settings, or retake by a plain wall';
     case 'even': return 'Shadow on face – retake facing the light';
     default: return `Retake: ${c.hint}`;
   }
@@ -168,7 +251,7 @@ function guide(g, checks, ready) {
   const top = PRIORITY.map((id) => failed.find((c) => c.id === id)).find(Boolean) ?? failed[0];
   const live = state.mode === 'live';
   let cls = '';
-  let iconText = '…';
+  let iconName = 'dots';
   let title;
   let sub = '';
   if (!ready) {
@@ -178,17 +261,20 @@ function guide(g, checks, ready) {
     sub = state.detector === 'failed' ? 'Automatic checks unavailable (offline?)' : '';
   } else if (top) {
     cls = WARN_IDS.has(top.id) ? 'warn' : 'bad';
-    iconText = ICONS[top.id] ?? '!';
+    iconName = ICONS[top.id] ?? 'alert';
     title = live ? top.hint : photoHint(top);
     sub = failed.length > 1 ? `${failed.length - 1} more to fix · tap for details` : 'Almost there · tap for details';
   } else {
     cls = 'ok';
-    iconText = '✓';
+    iconName = 'check';
     title = `Meets ${state.country.flag} ${state.country.name} requirements`;
     sub = live ? ($('auto').checked ? 'Hold still – taking the photo…' : 'Tap Capture') : 'Tap Save to export';
   }
   bubble.className = `bubble ${cls}`;
-  $('bubble-icon').textContent = iconText;
+  if ($('bubble-icon').dataset.name !== iconName) {
+    setIcon(iconName);
+    $('bubble-icon').dataset.name = iconName;
+  }
   $('bubble-title').textContent = title;
   $('bubble-sub').textContent = sub;
   renderChecks($('checks'), checks);
@@ -205,14 +291,16 @@ function guide(g, checks, ready) {
   return allGood;
 }
 
-$('bubble').addEventListener('click', () => { $('checks').hidden = !$('checks').hidden; });
+$('bubble').addEventListener('click', () => {
+  $('checks').hidden = !$('checks').hidden;
+  $('bubble').setAttribute('aria-expanded', String(!$('checks').hidden));
+});
 
 // ---------------------------------------------------------------- camera
 
 async function startCamera() {
   if (state.camActive) return;
   state.camActive = true;
-  state.introShown = false;
   guide(null, [], false);
   $('bubble-title').textContent = 'Starting camera…';
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -241,22 +329,40 @@ async function startCamera() {
   overlay.classList.toggle('mirror', state.mirrored);
   video.srcObject = state.stream;
   await video.play().catch(() => {});
+  keepAwake(true);
   requestAnimationFrame(camLoop);
 }
+
+// Keep the screen on while framing the shot (released when the camera stops).
+async function keepAwake(on) {
+  try {
+    if (on && !state.wakeLock && navigator.wakeLock) state.wakeLock = await navigator.wakeLock.request('screen');
+    if (!on && state.wakeLock) { await state.wakeLock.release(); state.wakeLock = null; }
+  } catch { state.wakeLock = null; }
+}
+
+// Pause the camera in the background (saves battery), resume when back.
+document.addEventListener('visibilitychange', () => {
+  if (state.mode !== 'live') return;
+  if (document.hidden) stopCamera();
+  else startCamera();
+});
 
 // No live camera (blocked, no HTTPS, or permission denied): Capture opens
 // the phone's own camera app instead, and the photo is checked afterwards.
 function showCameraError(msg) {
   state.nativeCamera = true;
   $('bubble').className = 'bubble warn';
-  $('bubble-icon').textContent = '📷';
+  setIcon('camera');
+  $('bubble-icon').dataset.name = 'camera';
   $('bubble-title').textContent = 'Tap Capture to take the photo with your camera app';
   $('bubble-sub').textContent = `${msg} – the photo is checked after you take it`;
 }
 
 function showError(title, sub = '') {
   $('bubble').className = 'bubble bad';
-  $('bubble-icon').textContent = '!';
+  setIcon('alert');
+  $('bubble-icon').dataset.name = 'alert';
   $('bubble-title').textContent = title;
   $('bubble-sub').textContent = sub;
 }
@@ -272,7 +378,7 @@ $('intro-ok').addEventListener('click', () => {
   if ($('intro-hide').checked) prefs.set('hideIntro', '1');
 });
 $('btn-help').addEventListener('click', () => {
-  $('settings').close();
+  closeSheet($('settings'));
   $('intro-hide').checked = false;
   prefs.set('hideIntro', '0');
   $('intro').hidden = false;
@@ -285,6 +391,7 @@ function stopTracks() {
 
 function stopCamera() {
   state.camActive = false;
+  keepAwake(false);
   state.goodSince = 0;
   stopTracks();
   video.srcObject = null;
@@ -302,7 +409,7 @@ function videoRegion() {
 function camLoop(now) {
   if (!state.camActive) return;
   requestAnimationFrame(camLoop);
-  if (now - state.lastDetect < 80 || video.readyState < 2 || !video.videoWidth) return;
+  if (now - state.lastDetect < state.detectEvery || video.readyState < 2 || !video.videoWidth) return;
   state.lastDetect = now;
 
   const { L, country } = state;
@@ -313,7 +420,10 @@ function camLoop(now) {
   let g = null;
 
   if (faceDetectorReady()) {
+    const t0 = performance.now();
     const det = detectFace(video, reg.vw, reg.vh);
+    // Leave the phone at least as much idle time as detection takes.
+    state.detectEvery = Math.min(250, Math.max(80, state.detectEvery * 0.8 + (performance.now() - t0) * 2 * 0.2));
     if (!det.count) {
       checks.push(mkCheck('face', false, 'Face found', 'No face found – step into the frame or move closer', 'grow'));
     } else {
@@ -499,7 +609,7 @@ function drawGuides(canvas, g, checks, now) {
   const { L } = state;
   const X = (u) => u * H;
   ctx.clearRect(0, 0, W, H);
-  const pulse = 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2 * 1.3);
+  const pulse = reducedMotion.matches ? 0.6 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2 * 1.3);
   const lw = Math.max(1.5, H / 300);
   const failed = checks.filter((c) => !c.ok);
   const cue = failed.find((c) => c.cue)?.cue ?? null;
@@ -667,8 +777,8 @@ function drawTransformed(ctx, W, H, img, t, { fill = '#fff', iw = img.width, ih 
 }
 
 // Full photo pipeline: crop → enhance → background replace/remove.
-function compose(ctx, W, H, { fast = false, bg = state.bg, fill = '#fff' } = {}) {
-  const { src, t, enh, mask } = state;
+function compose(ctx, W, H, { fast = false, bg = state.bg, fill = '#fff', t = state.t } = {}) {
+  const { src, enh, mask } = state;
   drawTransformed(ctx, W, H, src, t, { fill });
   if (!isNeutral(enh)) {
     const img = ctx.getImageData(0, 0, W, H);
@@ -693,9 +803,17 @@ function compose(ctx, W, H, { fast = false, bg = state.bg, fill = '#fff' } = {})
 }
 
 
-function renderChecks(ul, checks) {
-  const html = checks.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}">${c.label}</li>`).join('');
-  if (ul.innerHTML !== html) ul.innerHTML = html;
+// Details panel: checks grouped by topic, with the fix for each failing one.
+function renderChecks(el, checks) {
+  const hint = (c) => (state.mode === 'live' ? c.hint : photoHint(c));
+  const html = GROUPS.map(([name, ids]) => {
+    const items = checks.filter((c) => ids.includes(c.id));
+    if (!items.length) return '';
+    const rows = items.map((c) => `<li class="${c.ok ? 'ok' : 'bad'}"><span>${esc(c.label)}</span>${
+      c.ok ? '' : `<small>${esc(hint(c))}</small>`}</li>`).join('');
+    return `<section><h4>${name}</h4><ul>${rows}</ul></section>`;
+  }).join('');
+  if (el.innerHTML !== html) el.innerHTML = html;
 }
 
 // Animate the overlay cues (pulsing lines and arrows) in both modes.
@@ -822,6 +940,12 @@ function renderPhotoView() {
   const headOk = !checks.some((c) => c.id === 'size' && !c.ok);
   checks.push(mkCheck('fill', coversImage(t, src.width, src.height), 'Photo fills the frame',
     headOk ? 'Taken too close – retake from further back' : 'Zoom in – there are empty edges', headOk ? null : 'grow'));
+  if (country.digital.uncropped && state.det?.face) {
+    // The digital photo is sent uncropped, so it must show the upper body.
+    const gs = headGeometry(state.det.face);
+    checks.push(mkCheck('body', src.height - gs.chin.y >= gs.headH * 0.6, 'Shoulders and upper body visible',
+      'Include your shoulders and upper body – step back or hold the phone further away', 'shrink'));
+  }
   const srcPx = Math.round(1 / t.scale);
   checks.push(mkCheck('res', srcPx >= country.digital.minH, `Resolution ${srcPx} px`,
     'Too far – not enough detail. Retake closer', 'grow'));
@@ -909,7 +1033,7 @@ function zoomAboutCenter(scale, rotation) {
 
 // ---------------------------------------------------------------- settings
 
-$('btn-settings').addEventListener('click', () => $('settings').showModal());
+$('btn-settings').addEventListener('click', () => openSheet($('settings')));
 for (const d of document.querySelectorAll('dialog')) {
   // Tap on the backdrop closes a sheet.
   d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
@@ -944,13 +1068,14 @@ $('btn-enhance-reset').addEventListener('click', () => {
   queueRender();
 });
 
+function selectBackground(bg) {
+  for (const b of document.querySelectorAll('#bg-options .swatch')) b.classList.toggle('active', b.dataset.bg === bg);
+  state.bg = bg;
+  if (bg !== 'original') ensureMask();
+  queueRender();
+}
 for (const btn of document.querySelectorAll('#bg-options .swatch')) {
-  btn.addEventListener('click', () => {
-    for (const b of document.querySelectorAll('#bg-options .swatch')) b.classList.toggle('active', b === btn);
-    state.bg = btn.dataset.bg;
-    if (state.bg !== 'original') ensureMask();
-    queueRender();
-  });
+  btn.addEventListener('click', () => selectBackground(btn.dataset.bg));
 }
 
 async function ensureMask() {
@@ -1013,8 +1138,25 @@ function renderPhoto(h, bg = jpegBg()) {
   return c;
 }
 
+// The whole photo (levelled, enhanced/background only if chosen), for
+// services that crop it themselves.
+async function renderUncropped() {
+  const { digital } = state.country;
+  const { width: w, height: h } = state.src;
+  const k = Math.min(1, digital.maxLong / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * k);
+  c.height = Math.round(h * k);
+  const whole = { cx: w / 2, cy: h / 2, scale: 1 / h, rotation: 0, aspect: w / h };
+  compose(c.getContext('2d'), c.width, c.height, { bg: jpegBg(), t: whole });
+  let blob = await toJpeg(c, 0.92, PRINT_DPI);
+  if (blob.size < digital.minBytes) blob = await toJpeg(c, 0.98, PRINT_DPI);
+  return blob;
+}
+
 async function renderDigital() {
   const { digital, heightMm } = state.country;
+  if (digital.uncropped) return renderUncropped();
   const maxBytes = Number($('max-kb').value) * 1024;
   let h = digital.h;
   for (;;) {
@@ -1076,7 +1218,7 @@ async function openSave() {
     $('save-warning').textContent = `⚠️ Not all checks pass yet: ${failed.map((c) => c.label).join(', ')}.`;
     $('save-hint').hidden = false;
     $('save-hint').textContent = 'Press and hold the photo to save it to your phone, or use the buttons below.';
-    $('save').showModal();
+    openSheet($('save'));
   } finally {
     btn.disabled = false;
   }
@@ -1091,27 +1233,24 @@ $('max-kb').addEventListener('change', async () => {
 // Show the file in the save sheet (long-press → Save image works everywhere,
 // even where downloads and the share sheet are blocked), then try to share
 // or download it directly.
+// Show the file in the save sheet (long-press → Save image works in any
+// browser), then hand it to the platform: native save + share sheet in the
+// Android app, share sheet or download on the web.
 async function save(blob, name) {
   const img = $('result-img');
   if (img.src) URL.revokeObjectURL(img.src);
   img.src = URL.createObjectURL(blob);
-  $('save-hint').hidden = false;
-  $('save-hint').textContent = `Showing ${name}. If it doesn’t download, press and hold the image above and choose Save image.`;
-  const file = new File([blob], name, { type: blob.type });
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: name });
-      return;
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-    }
+  const hint = $('save-hint');
+  hint.hidden = false;
+  hint.textContent = `Saving ${name}…`;
+  try {
+    const where = await saveFile(blob, name);
+    hint.textContent = where
+      ? `Saved to ${where}.`
+      : `Showing ${name}. If it didn’t download, press and hold the image and choose Save image.`;
+  } catch (err) {
+    hint.textContent = `Couldn’t save (${err?.message || err}). Press and hold the image and choose Save image.`;
   }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  document.body.append(a);
-  a.click();
-  a.remove();
 }
 
 const fileBase = () => `${state.country.id}-photo-${state.country.widthMm.toFixed(0)}x${state.country.heightMm.toFixed(0)}mm`;

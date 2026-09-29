@@ -1,0 +1,17 @@
+{
+  "appId": "com.lutfitek.passportphoto",
+  "appName": "Passport Photo",
+  "webDir": "www",
+  "backgroundColor": "#0e1116",
+  "android": {
+    "backgroundColor": "#0e1116",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
+    }
+  }
+}

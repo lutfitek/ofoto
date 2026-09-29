@@ -22,6 +22,9 @@
       <span id="country-tag" class="country-tag"></span>
       <div id="intro" class="intro" hidden>
         <h2>Camera ready – before you shoot</h2>
+        <label class="field intro-field">Photo for
+          <select id="intro-country" aria-label="Document"></select>
+        </label>
         <ol id="intro-steps"></ol>
         <label class="small"><input id="intro-hide" type="checkbox"> Don’t show again</label>
         <button id="intro-ok" class="primary" type="button">Start</button>
@@ -29,14 +32,14 @@
     </div>
 
     <!-- Guidance bubble: what to fix next, or a green check when compliant -->
-    <button id="bubble" class="bubble" type="button" aria-live="polite">
-      <span id="bubble-icon" class="bubble-icon">…</span>
+    <button id="bubble" class="bubble" type="button" aria-live="polite" aria-controls="checks" aria-expanded="false">
+      <span id="bubble-icon" class="bubble-icon"></span>
       <span class="bubble-text">
         <b id="bubble-title">Starting camera…</b>
         <small id="bubble-sub"></small>
       </span>
     </button>
-    <ul id="checks" class="checks" hidden></ul>
+    <div id="checks" class="checks" hidden></div>
   </main>
 
   <!-- Bottom bar: upload · capture/save · settings -->
@@ -109,6 +112,7 @@
           <button type="button" data-bg="#f5f3ee" class="swatch"><i style="background:#f5f3ee"></i>Off-white</button>
           <button type="button" data-bg="#e4e4e2" class="swatch"><i style="background:#e4e4e2"></i>Light grey</button>
           <button type="button" data-bg="#f3ead3" class="swatch"><i style="background:#f3ead3"></i>Cream</button>
+          <button type="button" data-bg="#1f5fbf" data-extra class="swatch" hidden><i style="background:#1f5fbf"></i>Blue</button>
           <button type="button" data-bg="transparent" class="swatch"><i class="checker"></i>Remove</button>
         </div>
         <p id="bg-status" class="small"></p>

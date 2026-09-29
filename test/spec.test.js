@@ -137,3 +137,27 @@ test('regionStats ignores transparent pixels', () => {
   near(s.mean, 10, 1e-3);
   assert.equal(lightingChecks({ bg: regionStats(d, 2, { x: 0, y: 0, w: 1, h: 1 }) }).length, 0);
 });
+
+test('Malaysia accepts a white or a blue background; the US only white', () => {
+  const blue = { mean: 90, std: 6, sat: 150, r: 30, g: 95, b: 190, n: 10 };
+  const white = { mean: 235, std: 4, sat: 5, r: 235, g: 235, b: 236, n: 10 };
+  const grey = { mean: 140, std: 4, sat: 8, r: 140, g: 140, b: 142, n: 10 };
+  const ok = (bg, rule) => lightingChecks({ bg }, rule).find((c) => c.id === 'bg-color').ok;
+  assert.ok(ok(blue, COUNTRIES.my.background));
+  assert.ok(ok(white, COUNTRIES.my.background));
+  assert.ok(!ok(grey, COUNTRIES.my.background));
+  assert.ok(!ok(blue, COUNTRIES.us.background));
+});
+
+test('regionStats reports mean colour', () => {
+  const d = new Uint8ClampedArray([10, 20, 30, 255, 30, 40, 50, 255]);
+  const s = regionStats(d, 2, { x: 0, y: 0, w: 2, h: 1 });
+  near(s.r, 20); near(s.g, 30); near(s.b, 40);
+  const m = mergeStats([s, { ...s, r: 40, g: 30, b: 20 }]);
+  near(m.r, 30); near(m.b, 30);
+});
+
+test('UK digital photos are exported uncropped', () => {
+  assert.equal(COUNTRIES.uk.digital.uncropped, true);
+  assert.ok(COUNTRIES.uk.digital.minBytes >= 50 * 1024);
+});
