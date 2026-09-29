@@ -23,7 +23,7 @@ Every push to `main` builds the app in GitHub Actions and publishes it as the
 **android-test** release.
 
 1. Open the repository's **Releases → android-test** page on your phone.
-2. Download `passport-photo.apk`.
+2. Download `ofoto.apk`.
 3. Allow your browser to install apps when Android asks.
 
 New builds install over the old one. The app needs camera access and has **no internet
@@ -75,7 +75,7 @@ One screen, three buttons:
   - a 4 × 6 in print sheet at 300 dpi with cut lines
   - a transparent PNG cut-out, when the background was removed
 
-  In the Android app, files go to `Documents/PassportPhotos` and the share sheet opens. In a
+  In the Android app, files go to `Documents/ofoto` and the share sheet opens. In a
   browser, press and hold the image to save it.
 
 ## Checks

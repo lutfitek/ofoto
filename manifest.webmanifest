@@ -1,6 +1,6 @@
 {
-  "name": "US Passport Photo Helper",
-  "short_name": "Passport Photo",
+  "name": "ofoto – passport & visa photos",
+  "short_name": "ofoto",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0e1116",

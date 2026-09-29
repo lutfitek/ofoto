@@ -1,6 +1,6 @@
 name: Android APK
 
-# Builds the Passport Photo Android app and publishes it as the
+# Builds the ofoto Android app and publishes it as the
 # "android-test" pre-release, so the latest APK can be installed from a phone.
 on:
   push:
@@ -53,16 +53,16 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: passport-photo-apk
+          name: ofoto-apk
           path: android/app/build/outputs/apk/release/*.apk
 
       - name: Publish test release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk passport-photo.apk
+          cp android/app/build/outputs/apk/release/app-release.apk ofoto.apk
           gh release delete android-test --yes --cleanup-tag || true
-          gh release create android-test passport-photo.apk \
+          gh release create android-test ofoto.apk \
             --target "$GITHUB_SHA" --prerelease \
-            --title "Passport Photo – Android test build #${GITHUB_RUN_NUMBER}" \
-            --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Open this page on your phone, download passport-photo.apk and allow installing from your browser. Test build signed with a public key – not for Play Store."
+            --title "ofoto – Android test build #${GITHUB_RUN_NUMBER}" \
+            --notes "Built from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}. Open this page on your phone, download ofoto.apk and allow installing from your browser. Test build signed with a public key – not for Play Store."
