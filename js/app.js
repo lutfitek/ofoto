@@ -215,6 +215,7 @@ function setMode(mode) {
   state.lastProblem = '';
   if (live) startCamera();
   else stopCamera();
+  updatePlaceholder();
   if (!live) queueRender();
 }
 
@@ -360,6 +361,7 @@ document.addEventListener('visibilitychange', () => {
 // the phone's own camera app instead, and the photo is checked afterwards.
 function showCameraError(msg) {
   state.nativeCamera = true;
+  updatePlaceholder();
   $('bubble').className = 'bubble warn';
   setIcon('camera');
   $('bubble-icon').dataset.name = 'camera';
@@ -376,7 +378,19 @@ function showError(title, sub = '') {
 }
 
 // Camera just became active: show how-to instructions (once per activation).
+// Placeholder graphic in the frame until the camera is live or a photo is loaded.
+function updatePlaceholder() {
+  const show = state.mode === 'live' && !state.videoLive;
+  $('placeholder').hidden = !show;
+  overlay.hidden = show;
+  $('placeholder-text').textContent = state.nativeCamera
+    ? 'No photo yet – tap Capture or Upload'
+    : state.camActive ? 'Starting camera…' : 'No photo yet';
+}
+
 video.addEventListener('playing', () => {
+  state.videoLive = true;
+  updatePlaceholder();
   if (state.introShown || prefs.get('hideIntro') === '1') return;
   state.introShown = true;
   $('intro').hidden = false;
@@ -399,6 +413,7 @@ function stopTracks() {
 
 function stopCamera() {
   state.camActive = false;
+  state.videoLive = false;
   $('zoom-bar').hidden = true;
   video.style.transform = '';
   keepAwake(false);

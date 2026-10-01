@@ -163,6 +163,30 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chip-btn { left: 12px; padding: 7px 13px; border: 0; font-size: 13px; font-weight: 600; }
 .country-tag { right: 12px; padding: 5px 11px; font-size: 12px; pointer-events: none; }
 
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(163, 230, 53, 0.10), transparent 60%),
+    #10151c;
+  color: #9eabbd;
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+.placeholder svg { width: min(52%, 200px); overflow: visible; }
+.ph-bracket { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: square; stroke-linejoin: miter; }
+.ph-card { animation: ph-float 3.2s ease-in-out infinite; transform-origin: 60px 60px; }
+.ph-card rect { fill: #eef2f7; }
+.ph-eye { fill: #fff; stroke: #121826; stroke-width: 2.2; }
+.ph-pupil { fill: #121826; }
+.ph-smile { fill: none; stroke: #121826; stroke-width: 3.2; stroke-linecap: round; }
+@keyframes ph-float { 50% { transform: translateY(-3px); } }
+
 .countdown {
   position: absolute;
   inset: 0;

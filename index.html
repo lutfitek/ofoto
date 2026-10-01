@@ -42,6 +42,22 @@
       <video id="video" playsinline autoplay muted></video>
       <canvas id="photo" hidden></canvas>
       <canvas id="overlay" class="overlay"></canvas>
+      <!-- Shown until the camera is live or a photo is loaded (drawn from the app icon). -->
+      <div id="placeholder" class="placeholder" aria-hidden="true">
+        <svg viewBox="0 0 120 120">
+          <path class="ph-bracket" d="M70 13 H105 V48"/>
+          <path class="ph-bracket" d="M15 72 V107 H50"/>
+          <g class="ph-card">
+            <rect x="32" y="25" width="56" height="70" rx="7"/>
+            <ellipse class="ph-eye" cx="49" cy="53" rx="6" ry="7.5"/>
+            <ellipse class="ph-eye" cx="71" cy="53" rx="6" ry="7.5"/>
+            <circle class="ph-pupil" cx="50.2" cy="55" r="2.8"/>
+            <circle class="ph-pupil" cx="69.8" cy="55" r="2.8"/>
+            <path class="ph-smile" d="M48 74 Q60 80.5 72 73.5"/>
+          </g>
+        </svg>
+        <span id="placeholder-text">No photo yet</span>
+      </div>
       <div id="countdown" class="countdown" hidden></div>
       <button id="btn-retake" class="chip-btn" type="button" hidden>↺ Retake</button>
       <span id="country-tag" class="country-tag"></span>
