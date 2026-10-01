@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Warm studio paper (matches the web UI's --paper). -->
+    <!-- Warm studio paper (matches the paper colour in css/style.css). -->
     <color name="app_background">#F3DCC4</color>
     <color name="brand">#121826</color>
 </resources>
