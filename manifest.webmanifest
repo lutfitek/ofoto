@@ -1,6 +1,6 @@
 {
-  "name": "ofoto – passport & visa photos",
-  "short_name": "ofoto",
+  "name": "simplytake – passport & visa photos",
+  "short_name": "simplytake",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f3dcc4",

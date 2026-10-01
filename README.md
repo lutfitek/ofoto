@@ -1,6 +1,6 @@
-# ofoto
+# simplytake
 
-**A guided passport and visa photo app.** Point your phone's camera and ofoto tells you what
+**A guided passport and visa photo app.** Point your phone's camera and simplytake tells you what
 to fix, whether that's distance, head tilt, camera height, lighting, shadows or background.
 When the photo meets the rules, a green ✓ appears. It crops the photo to the exact size and
 saves a digital file plus a 4 × 6 in print sheet. Everything runs on the phone; photos never
@@ -14,7 +14,7 @@ It's available as a web app and as an offline Android app.
 | 🇬🇧 United Kingdom ([rules](https://www.passport.service.gov.uk/photo/how-to-take-a-photo)) | 35 × 45 mm print; digital **uncropped** (head, shoulders, upper body, ≥ 600 × 750 px, 50 KB–10 MB) | 29–34 mm | – | plain light colour (cream, light grey) |
 | 🇲🇾 Malaysia eVisa ([rules](https://malaysiavisa.imi.gov.my/evisa/check-photo)) | 35 × 50 mm | 30–35 mm | ≥ 5 mm above head | white or blue |
 
-> ofoto is a helper, not an official service. The issuing agency makes the final decision.
+> simplytake is a helper, not an official service. The issuing agency makes the final decision.
 > Check the linked rules before you apply.
 
 ## Install on Android
@@ -23,7 +23,7 @@ Every push to `main` builds the app in GitHub Actions and publishes it as the
 **android-test** release.
 
 1. Open the repository's **Releases → android-test** page on your phone.
-2. Download `ofoto.apk`.
+2. Download `simplytake.apk`.
 3. Allow your browser to install apps when Android asks.
 
 New builds install over the old one. The app needs camera access and has **no internet
@@ -56,7 +56,7 @@ One screen, three buttons:
 
   When everything passes, the bubble turns into a green ✓ and, with auto-capture on, the photo
   is taken after about a second of holding still.
-- **Sharp captures.** If the phone's camera can take stills sharper than the preview, ofoto
+- **Sharp captures.** If the phone's camera can take stills sharper than the preview, simplytake
   uses the full-resolution still. It falls back to the preview frame automatically if that
   fails.
 - **Captured or uploaded photo.** Auto-crop levels the eyes and sizes and places the head per
@@ -75,7 +75,7 @@ One screen, three buttons:
   - a 4 × 6 in print sheet at 300 dpi with cut lines
   - a transparent PNG cut-out, when the background was removed
 
-  In the Android app, files go to `Documents/ofoto` and the share sheet opens. In a
+  In the Android app, files go to `Documents/simplytake` and the share sheet opens. In a
   browser, press and hold the image to save it.
 
 ## Checks
@@ -140,7 +140,7 @@ upload key, keep it out of git, and read it from CI secrets instead.
 
 ## License
 
-ofoto is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You may
+simplytake is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You may
 use, change and share it for any noncommercial purpose. Commercial use needs a separate
 license from the author.
 

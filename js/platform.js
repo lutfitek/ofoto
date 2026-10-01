@@ -3,7 +3,7 @@
 const cap = globalThis.Capacitor;
 export const isNative = Boolean(cap?.isNativePlatform?.());
 
-const FOLDER = 'ofoto';
+const FOLDER = 'simplytake';
 
 function toBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -14,7 +14,7 @@ function toBase64(blob) {
   });
 }
 
-// Android app: write to Documents/ofoto, then open the share sheet
+// Android app: write to Documents/simplytake, then open the share sheet
 // (print, Drive, messaging…). Returns where the file was saved.
 async function saveNative(blob, name) {
   const { Filesystem, Share } = cap.Plugins;
