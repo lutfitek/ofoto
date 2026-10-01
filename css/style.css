@@ -2,7 +2,7 @@
    column hangs from a roll and sweeps onto the floor, with plain wall
    showing around it. The photo frame hangs on the paper, the guidance
    bubble sits on it, the dock rests on the floor. Cool daylight
-   (~5600 K) from above; soft edges; one warm accent for the shutter. */
+   (~5600 K) from above; soft edges; the icon's lime for the shutter. */
 :root {
   /* studio (cool daylight) */
   --void: #c3ccd6;            /* the wall around the paper */
@@ -19,9 +19,9 @@
   --surface: rgba(250, 252, 255, 0.86);
   --surface-2: #f1f4f8;
   --edge: rgba(36, 56, 86, 0.14);
-  --accent: #e2873f;          /* the one warm light: shutter and buttons */
-  --accent-2: #c9612f;
-  --on-accent: #fffaf4;
+  --accent: #a3e635;          /* the app icon's lime: shutter and buttons */
+  --accent-2: #65a30d;        /* deeper lime for outlines and the button edge */
+  --on-accent: #121826;       /* the icon's night ink on lime */
   --link: #2f5fb3;
   --ok: #3f9a5a;
   --ok-soft: #e1f1e5;
@@ -48,7 +48,7 @@
     --ink: #e8eef6; --muted: #9eabbd;
     --surface: rgba(30, 37, 48, 0.86); --surface-2: #232b37;
     --edge: rgba(170, 196, 230, 0.14);
-    --accent: #f0a04b; --accent-2: #d8723a; --on-accent: #23160c;
+    --accent: #a3e635; --accent-2: #65a30d; --on-accent: #121826;
     --link: #8fb6f0; --ok: #6cc286; --ok-soft: #1f3528;
     --bad: #f07a63; --warn: #f2b45a;
     --note-bg: #3d2e16; --note-ink: #ffd9a6;
@@ -63,7 +63,7 @@
   --ink: #e8eef6; --muted: #9eabbd;
   --surface: rgba(30, 37, 48, 0.86); --surface-2: #232b37;
   --edge: rgba(170, 196, 230, 0.14);
-  --accent: #f0a04b; --accent-2: #d8723a; --on-accent: #23160c;
+  --accent: #a3e635; --accent-2: #65a30d; --on-accent: #121826;
   --link: #8fb6f0; --ok: #6cc286; --ok-soft: #1f3528;
   --bad: #f07a63; --warn: #f2b45a;
   --note-bg: #3d2e16; --note-ink: #ffd9a6;
@@ -83,7 +83,7 @@ html, body {
 body { min-height: 100dvh; }
 
 button { font: inherit; color: inherit; cursor: pointer; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
 /* ---- the studio backdrop ---- */
@@ -422,7 +422,7 @@ a { color: var(--link); }
 
 .sliders { display: grid; gap: 8px; }
 .sliders label { display: grid; grid-template-columns: 72px 1fr; align-items: center; color: var(--muted); }
-input[type="range"] { width: 100%; accent-color: var(--accent); }
+input[type="range"] { width: 100%; accent-color: var(--accent-2); }
 .toggle { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--ok); }
 .field { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); }
@@ -435,7 +435,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   background: var(--paper-top); border: 0; box-shadow: inset 0 0 0 1px var(--edge);
   font-size: 13px;
 }
-.swatch.active { box-shadow: inset 0 0 0 2px var(--accent); }
+.swatch.active { box-shadow: inset 0 0 0 2px var(--accent-2); }
 .swatch i { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.15); flex: none; }
 .swatch i.checker, .result { background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 12px 12px; }
 
