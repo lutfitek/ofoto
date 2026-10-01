@@ -28,7 +28,7 @@ const SHA256 = {
 
 // Asset locations the app reads (see js/face.js). Written to a file, not an
 // inline script, so the Content Security Policy can forbid inline scripts.
-const ASSETS_JS = `window.PPH_ASSETS = {
+const assetsJs = (sizes) => `window.PPH_ASSETS = {
   bundle: new URL('mediapipe/vision_bundle.mjs', document.baseURI).href,
   wasm: new URL('mediapipe/wasm', document.baseURI).href,
   faceModel: new URL('models/face_landmarker.task', document.baseURI).href,
@@ -36,6 +36,9 @@ const ASSETS_JS = `window.PPH_ASSETS = {
   segModelSize: '16 MB',
   segMaskIndex: 0,          // class 0 = background
   segMaskIsBackground: true,
+  // Download sizes, for the progress shown while the face guide loads.
+  engineBytes: ${sizes.engine},
+  faceModelBytes: ${sizes.face},
 };
 `;
 
@@ -88,7 +91,6 @@ const app = '<script type="module" src="js/app.js"></script>';
 if (!html.includes(app)) throw new Error('index.html: app script tag not found');
 const head = '<meta charset="utf-8">';
 if (!html.includes(head)) throw new Error('index.html: charset meta not found');
-await writeFile(join(out, 'js/assets-local.js'), ASSETS_JS);
 await writeFile(join(out, 'index.html'), html
   .replace(head, `${head}\n  <meta http-equiv="Content-Security-Policy" content="${CSP}">`)
   .replace(app, '<script src="js/assets-local.js"></script>\n  ' + app));
@@ -101,5 +103,11 @@ for (const f of ['vision_wasm_internal.js', 'vision_wasm_internal.wasm']) {
 for (const name of Object.keys(MODELS)) {
   await cp(await model(name), join(out, 'models', name));
 }
+
+const size = async (f) => (await stat(join(out, f))).size;
+await writeFile(join(out, 'js/assets-local.js'), assetsJs({
+  engine: await size('mediapipe/wasm/vision_wasm_internal.wasm'),
+  face: await size('models/face_landmarker.task'),
+}));
 
 console.log('Built www/');

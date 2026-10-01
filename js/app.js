@@ -75,6 +75,8 @@ const state = {
   camActive: false,
   introShown: false,
   detector: 'loading', // loading | ready | failed
+  loadTitle: 'Loading face guide…',
+  loadNote: '',
   timerIdx: 0,
   counting: false,
   goodSince: 0,
@@ -269,9 +271,9 @@ function guide(g, checks, ready) {
   let sub = '';
   if (!ready) {
     title = live
-      ? (state.detector === 'failed' ? 'Line up your head with the oval' : 'Loading face guide…')
+      ? (state.detector === 'failed' ? 'Line up your head with the oval' : state.loadTitle)
       : 'Line up the head with the oval';
-    sub = state.detector === 'failed' ? 'Automatic checks unavailable (offline?)' : '';
+    sub = state.detector === 'failed' ? 'Automatic checks unavailable (offline?)' : live ? state.loadNote : '';
   } else if (top) {
     cls = WARN_IDS.has(top.id) ? 'warn' : 'bad';
     iconName = ICONS[top.id] ?? 'alert';
@@ -311,6 +313,10 @@ $('bubble').addEventListener('click', () => {
 
 // ---------------------------------------------------------------- camera
 
+// Resolves once the camera first shows a picture or fails to start.
+let cameraSettled;
+const cameraStarted = new Promise((resolve) => { cameraSettled = resolve; });
+
 async function startCamera() {
   if (state.camActive || !noticeAccepted()) return;
   state.camActive = true;
@@ -319,6 +325,7 @@ async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) {
     state.camActive = false;
     showCameraError('Camera not available (needs HTTPS)');
+    cameraSettled();
     return;
   }
   try {
@@ -329,6 +336,7 @@ async function startCamera() {
   } catch (err) {
     state.camActive = false;
     showCameraError(`Camera unavailable (${err.name})`);
+    cameraSettled();
     return;
   }
   if (!state.camActive) { // left live mode while waiting for permission
@@ -342,6 +350,7 @@ async function startCamera() {
   overlay.classList.toggle('mirror', state.mirrored);
   video.srcObject = state.stream;
   await video.play().catch(() => {});
+  cameraSettled();
   keepAwake(true);
   detectStillSupport(state.stream.getVideoTracks()[0]);
   setupZoom(state.stream.getVideoTracks()[0]);
@@ -1508,7 +1517,25 @@ $('btn-save-png').addEventListener('click', async () => {
 setCountry(prefs.get('country') ?? 'us');
 setMode('live');
 if (!noticeAccepted()) $('notice').showModal();
-loadFaceDetector()
+const mb = (bytes) => (bytes / 1e6).toFixed(1);
+const loadStart = performance.now();
+loadFaceDetector(({ got, total }) => {
+  // Cached loads finish within a moment; only show progress for real downloads.
+  if (performance.now() - loadStart < 800) return;
+  if (total && got >= total) {
+    state.loadTitle = 'Setting up face guide…';
+    state.loadNote = '';
+  } else {
+    state.loadTitle = 'Downloading face guide…';
+    state.loadNote = `${total ? `${mb(got)} of ${mb(total)} MB` : `${mb(got)} MB`} · first time only`;
+  }
+}, async () => {
+  // Setting up the detector freezes the page for a moment, so let the camera
+  // start first (or give it 2 s once the notice has been accepted).
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  while (!noticeAccepted()) await sleep(250);
+  await Promise.race([cameraStarted, sleep(2000)]);
+})
   .then(() => {
     state.detector = 'ready';
     // A photo may have been uploaded before the model finished loading.

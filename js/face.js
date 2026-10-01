@@ -44,19 +44,63 @@ let segmenter = null;
 let segmenterLoading = null;
 let lastTs = 0;
 
+// Reads a response body, reporting progress as onProgress(receivedBytes,
+// totalBytes); totalBytes is 0 when unknown. Returns the bytes.
+async function readWithProgress(res, onProgress, total = 0) {
+  total ||= Number(res.headers.get('content-length')) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    got += value.length;
+    onProgress(got, total);
+  }
+  const bytes = new Uint8Array(got);
+  let at = 0;
+  for (const c of chunks) { bytes.set(c, at); at += c.length; }
+  return bytes;
+}
+
+async function fetchBytes(url, onProgress, total) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  if (!onProgress || !res.body) return new Uint8Array(await res.arrayBuffer());
+  return readWithProgress(res, onProgress, total);
+}
+
+// Reports progress on MediaPipe's own download of the 9 MB engine by reading
+// a copy of the response. MediaPipe gets the original untouched, so the
+// browser keeps compiling it while it downloads and caches the compiled code
+// for later visits. Returns a function that stops watching.
+function watchDownload(url, onProgress, total) {
+  const original = globalThis.fetch;
+  globalThis.fetch = async function (input, init) {
+    const res = await original.call(this, input, init);
+    if (String(input?.url ?? input) === url && res.ok && res.body) {
+      readWithProgress(res.clone(), onProgress, total).catch(() => {});
+    }
+    return res;
+  };
+  return () => { globalThis.fetch = original; };
+}
+
 function loadVision() {
   vision ||= (async () => {
     const mod = await import(ASSETS.bundle);
     const fileset = await mod.FilesetResolver.forVisionTasks(ASSETS.wasm);
     return { mod, fileset };
   })();
+  vision.catch(() => { vision = null; });
   return vision;
 }
 
-// A model URL ending in `.b64.txt` holds the model base64-encoded (for hosts
-// that only serve text); it is decoded and passed to MediaPipe as bytes.
-async function modelSource(url) {
-  if (!url.endsWith('.b64.txt')) return { modelAssetPath: url };
+// Models are passed to MediaPipe as bytes. A model URL ending in `.b64.txt`
+// holds the model base64-encoded (for hosts that only serve text).
+async function modelSource(url, onProgress, total) {
+  if (!url.endsWith('.b64.txt')) return { modelAssetBuffer: await fetchBytes(url, onProgress, total) };
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Model download failed (${res.status})`);
   const bin = atob((await res.text()).trim());
@@ -70,12 +114,33 @@ let videoDelegate = 'GPU';
 let emptyStreak = 0;
 let switchingToCpu = false;
 
-export async function loadFaceDetector() {
+// onProgress({ got, total }) reports the download in bytes (total is 0 when
+// unknown). The model downloads first, then MediaPipe fetches the engine
+// while it sets up the detectors.
+// beforeSetup() can delay the setup, which blocks the page for a moment.
+export async function loadFaceDetector(onProgress = () => {}, beforeSetup = async () => {}) {
+  const parts = { engine: [0, ASSETS.engineBytes ?? 0], model: [0, ASSETS.faceModelBytes ?? 0] };
+  const part = (key) => (got, total) => {
+    parts[key] = [got, total || parts[key][1]];
+    const all = Object.values(parts);
+    const known = all.every(([, t]) => t > 0);
+    onProgress({ got: all.reduce((a, [g]) => a + g, 0), total: known ? all.reduce((a, [g, t]) => a + Math.max(g, t), 0) : 0 });
+  };
   const { mod, fileset } = await loadVision();
-  const model = await modelSource(ASSETS.faceModel);
+  const unwatch = watchDownload(String(fileset.wasmBinaryPath), part('engine'), ASSETS.engineBytes);
+  try {
+    const model = await modelSource(ASSETS.faceModel, part('model'), ASSETS.faceModelBytes);
+    await beforeSetup();
+    await createDetectors(mod, fileset, model);
+  } finally {
+    unwatch();
+  }
+}
+
+async function createDetectors(mod, fileset, model) {
   createLandmarker = (runningMode, delegate) => mod.FaceLandmarker.createFromOptions(fileset, {
     // Copy the bytes: each task keeps its own model buffer.
-    baseOptions: { ...(model.modelAssetBuffer ? { modelAssetBuffer: model.modelAssetBuffer.slice() } : model), delegate },
+    baseOptions: { modelAssetBuffer: model.modelAssetBuffer.slice(), delegate },
     runningMode,
     numFaces: 2,
     outputFaceBlendshapes: true,
