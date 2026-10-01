@@ -6,7 +6,13 @@ When the photo meets the rules, a green ✓ appears. It crops the photo to the e
 saves a digital file plus a 4 × 6 in print sheet. Everything runs on the phone; photos never
 leave the device.
 
-It's available as a web app and as an offline Android app.
+> **Experimental.** simplytake is a free tool for people to try out. It isn't affiliated with
+> any government or passport agency, and its checks are estimates. **Always check the current
+> official requirements and instructions for your document before you apply.**
+
+**Try it:**
+- **Web:** https://lutfitek.github.io/simplytake/ (works in a phone browser, with the live camera)
+- **Android:** download `simplytake.apk` from [Releases → android-test](https://github.com/lutfitek/simplytake/releases/tag/android-test)
 
 | Document | Size | Head (chin to crown) | Other placement | Background |
 |---|---|---|---|---|
@@ -14,20 +20,36 @@ It's available as a web app and as an offline Android app.
 | 🇬🇧 United Kingdom ([rules](https://www.passport.service.gov.uk/photo/how-to-take-a-photo)) | 35 × 45 mm print; digital **uncropped** (head, shoulders, upper body, ≥ 600 × 750 px, 50 KB–10 MB) | 29–34 mm | – | plain light colour (cream, light grey) |
 | 🇲🇾 Malaysia eVisa ([rules](https://malaysiavisa.imi.gov.my/evisa/check-photo)) | 35 × 50 mm | 30–35 mm | ≥ 5 mm above head | white or blue |
 
-> simplytake is a helper, not an official service. The issuing agency makes the final decision.
-> Check the linked rules before you apply.
+A green ✓ means the photo passed simplytake's own checks, not that it will be accepted. The
+issuing agency makes the final decision, and rules change, so use the links above to check the
+official requirements.
 
 ## Install on Android
 
-Every push to `main` builds the app in GitHub Actions and publishes it as the
-**android-test** release.
+1. On your phone, open [Releases → android-test](https://github.com/lutfitek/simplytake/releases/tag/android-test).
+2. Tap `simplytake.apk` to download it.
+3. Open the download. Android will ask whether your browser may install apps: allow it, then
+   tap **Install**. (Android warns about apps from outside the Play Store; this is a test build.)
+4. Open **simplytake** and allow camera access.
 
-1. Open the repository's **Releases → android-test** page on your phone.
-2. Download `simplytake.apk`.
-3. Allow your browser to install apps when Android asks.
+New builds install over the old one, so you can update the same way. The app needs camera
+access and has **no internet permission**.
 
-New builds install over the old one. The app needs camera access and has **no internet
-permission**.
+## Privacy
+
+- Your photos never leave your device. Face detection, checks and editing all run on the phone.
+- The Android app has no internet permission. The web version downloads the app and its
+  face-detection models from GitHub Pages once, then works on your device; your photos are
+  never uploaded.
+- No accounts, analytics or tracking. The only things stored are your settings (like the
+  chosen document), on your device.
+
+## Feedback
+
+Found a problem, or got a photo accepted or rejected? Open an issue with the
+[feedback form](https://github.com/lutfitek/simplytake/issues/new?template=feedback.md), or use
+**⋯ Settings → Send feedback** in the app. **Please don't attach photos of your face or
+documents**, as issues are public.
 
 ## How it works
 
@@ -42,7 +64,8 @@ One screen, three buttons:
 [ Upload ] [ ◉ ] [ ⋯ ]  upload · capture / save · settings
 ```
 
-- **When the camera turns on**, it shows how-to instructions for the selected document.
+- **Before the camera starts**, the frame shows a placeholder from the app icon. When the
+  camera turns on, it shows how-to instructions for the selected document.
 - **Live guidance.** The app tracks the face and names the most important problem, like
   *Too far – move closer*, *Too dark*, *Camera too low*, *Keep head straight* or *Shadow on
   one side*. It shows it in the bubble and animates a cue in the frame:
@@ -56,6 +79,8 @@ One screen, three buttons:
 
   When everything passes, the bubble turns into a green ✓ and, with auto-capture on, the photo
   is taken after about a second of holding still.
+- **Zoom.** A slider under the frame (or pinch on the preview) zooms the live camera, using the
+  camera's own zoom when it has one and digital zoom otherwise.
 - **Sharp captures.** If the phone's camera can take stills sharper than the preview, simplytake
   uses the full-resolution still. It falls back to the preview frame automatically if that
   fails.
@@ -109,8 +134,10 @@ npm test            # unit tests: rules, geometry, pixel and shadow checks, enha
 npm start           # serve the web app at http://localhost:8080
 ```
 
-Camera access needs HTTPS or `localhost`. Any static host works, such as GitHub Pages or
-Netlify. On the web, the MediaPipe runtime and models load from their CDNs.
+Camera access needs HTTPS or `localhost`. Serving the source folder directly (as `npm start`
+does) loads the MediaPipe runtime and models from their CDNs. The published web app is built
+with `npm run build:web` instead, which bundles them, and `.github/workflows/pages.yml`
+deploys that `www/` folder to GitHub Pages on every push to `main`.
 
 ### Android app
 
@@ -137,6 +164,8 @@ upload key, keep it out of git, and read it from CI secrets instead.
 - `js/platform.js`: saving files (native in the Android app, share/download on the web)
 - `scripts/build-web.mjs`, `capacitor.config.json`, `android/`: Android app
 - `.github/workflows/android.yml`: APK build and android-test release
+- `.github/workflows/pages.yml`: web app build and GitHub Pages deploy
+- `.github/ISSUE_TEMPLATE/feedback.md`: the feedback form
 
 ## License
 
