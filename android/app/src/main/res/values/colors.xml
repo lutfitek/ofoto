@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="app_background">#0E1116</color>
-    <color name="brand">#0B1F3A</color>
+    <!-- Warm studio paper (matches the web UI's --paper). -->
+    <color name="app_background">#F3DCC4</color>
+    <color name="brand">#121826</color>
 </resources>

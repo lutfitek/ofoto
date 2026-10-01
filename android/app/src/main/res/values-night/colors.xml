@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Studio after dark (matches the web UI's dark --paper). -->
+    <color name="app_background">#3A271E</color>
+    <color name="brand">#121826</color>
+</resources>

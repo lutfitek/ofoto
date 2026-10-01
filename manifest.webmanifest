@@ -3,8 +3,8 @@
   "short_name": "ofoto",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0e1116",
-  "theme_color": "#121826",
+  "background_color": "#f3dcc4",
+  "theme_color": "#f3dcc4",
   "icons": [
     {
       "src": "icon.svg",

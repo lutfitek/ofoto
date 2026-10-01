@@ -2,16 +2,16 @@
   "appId": "com.lutfitek.passportphoto",
   "appName": "ofoto",
   "webDir": "www",
-  "backgroundColor": "#0e1116",
+  "backgroundColor": "#f3dcc4",
   "android": {
-    "backgroundColor": "#0e1116",
+    "backgroundColor": "#f3dcc4",
     "allowMixedContent": false,
     "webContentsDebuggingEnabled": false
   },
   "plugins": {
     "SystemBars": {
       "insetsHandling": "css",
-      "style": "DARK"
+      "style": "DEFAULT"
     }
   }
 }

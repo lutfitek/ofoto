@@ -99,6 +99,9 @@ const state = {
   printBlob: null,
   wakeLock: null,
   capturing: false,
+  // Live-camera zoom: 'hw' drives the camera's own zoom, 'digital' crops the
+  // preview (and the region that gets checked and captured).
+  zoom: { mode: 'none', value: 1, min: 1, max: 3, track: null },
   // Full-resolution stills via ImageCapture, when the phone supports them.
   still: { ic: null, size: '', failures: 0, note: 'Checking…' },
   detectEvery: 80, // ms between live detections; grows on slow phones
@@ -334,6 +337,7 @@ async function startCamera() {
   await video.play().catch(() => {});
   keepAwake(true);
   detectStillSupport(state.stream.getVideoTracks()[0]);
+  setupZoom(state.stream.getVideoTracks()[0]);
   requestAnimationFrame(camLoop);
 }
 
@@ -395,6 +399,8 @@ function stopTracks() {
 
 function stopCamera() {
   state.camActive = false;
+  $('zoom-bar').hidden = true;
+  video.style.transform = '';
   keepAwake(false);
   state.goodSince = 0;
   stopTracks();
@@ -406,8 +412,81 @@ function videoRegion() {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   const A = state.L.aspect;
-  const [rw, rh] = vw / vh > A ? [vh * A, vh] : [vw, vw / A];
+  const z = digitalZoom();
+  let [rw, rh] = vw / vh > A ? [vh * A, vh] : [vw, vw / A];
+  rw /= z;
+  rh /= z;
   return { vw, vh, rw, rh, ox: (vw - rw) / 2, oy: (vh - rh) / 2 };
+}
+
+// ---------------------------------------------------------------- zoom
+
+const digitalZoom = () => (state.zoom.mode === 'digital' ? state.zoom.value : 1);
+
+function setupZoom(track) {
+  const z = state.zoom;
+  const caps = track?.getCapabilities?.() ?? {};
+  if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+    z.mode = 'hw';
+    z.min = caps.zoom.min;
+    z.max = Math.min(caps.zoom.max, caps.zoom.min * 10);
+    z.step = caps.zoom.step || 0.1;
+    z.value = track.getSettings?.().zoom ?? z.min;
+  } else {
+    z.mode = 'digital';
+    z.min = 1;
+    z.max = 3;
+    z.step = 0.01;
+    z.value = 1;
+  }
+  z.track = track;
+  const input = $('cam-zoom');
+  input.min = z.min;
+  input.max = z.max;
+  input.step = z.step;
+  input.value = z.value;
+  $('zoom-bar').hidden = false;
+  $('zoom-bar').title = z.mode === 'hw' ? 'Camera zoom' : 'Digital zoom';
+  applyZoom(z.value);
+}
+
+function applyZoom(v) {
+  const z = state.zoom;
+  z.value = Math.min(z.max, Math.max(z.min, v));
+  $('cam-zoom').value = z.value;
+  $('cam-zoom-val').textContent = `${(z.value / z.min).toFixed(1)}×`;
+  if (z.mode === 'hw') {
+    z.track?.applyConstraints({ advanced: [{ zoom: z.value }] }).catch(() => {
+      // Camera refused: fall back to digital zoom for this session.
+      setupZoomDigital();
+    });
+    video.style.transform = '';
+  } else {
+    const k = z.value;
+    video.style.transform = k > 1 ? `scale(${state.mirrored ? -k : k}, ${k})` : '';
+  }
+}
+
+function setupZoomDigital() {
+  Object.assign(state.zoom, { mode: 'digital', min: 1, max: 3, step: 0.01, value: 1 });
+  const input = $('cam-zoom');
+  input.min = 1;
+  input.max = 3;
+  input.step = 0.01;
+  applyZoom(1);
+}
+
+$('cam-zoom').addEventListener('input', (e) => applyZoom(Number(e.target.value)));
+
+// Crop a canvas to its central 1/z (digital zoom).
+function cropCenter(c, z) {
+  if (z <= 1) return c;
+  const out = document.createElement('canvas');
+  out.width = Math.round(c.width / z);
+  out.height = Math.round(c.height / z);
+  out.getContext('2d').drawImage(c, (c.width - out.width) / 2, (c.height - out.height) / 2,
+    out.width, out.height, 0, 0, out.width, out.height);
+  return out;
 }
 
 function camLoop(now) {
@@ -507,7 +586,7 @@ function grabFrame() {
   c.width = video.videoWidth;
   c.height = video.videoHeight;
   c.getContext('2d').drawImage(video, 0, 0); // stored un-mirrored, as others see you
-  return c;
+  return cropCenter(c, digitalZoom());
 }
 
 // Check whether this camera can take stills sharper than the preview.
@@ -568,7 +647,7 @@ async function capture() {
   if (useStill()) {
     $('bubble-title').textContent = 'Taking a full-resolution photo – hold still…';
     try {
-      const still = await takeStill();
+      const still = cropCenter(await takeStill(), digitalZoom());
       const sameShape = (still.width > still.height) === (frame.width > frame.height);
       det = sameShape && faceDetectorReady() ? detectFace(still, still.width, still.height, { still: true }) : null;
       if (sameShape && (!faceDetectorReady() || det?.face)) {
@@ -1100,15 +1179,25 @@ function gesture() {
 
 let lastGesture = null;
 stage.addEventListener('pointerdown', (e) => {
-  if (state.mode !== 'photo' || e.target.closest('button')) return;
+  if (e.target.closest('button, #intro')) return;
+  if (state.mode === 'live' && !state.stream) return;
   stage.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  state.dragging = true;
+  if (state.mode === 'photo') state.dragging = true;
   lastGesture = gesture();
 });
 stage.addEventListener('pointermove', (e) => {
-  if (!pointers.has(e.pointerId) || !state.t) return;
+  if (!pointers.has(e.pointerId)) return;
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (state.mode === 'live') {
+    // Live camera: two-finger pinch zooms.
+    const cur = gesture();
+    const prev = lastGesture;
+    lastGesture = cur;
+    if (pointers.size >= 2 && prev?.dist > 0) applyZoom(state.zoom.value * (cur.dist / prev.dist));
+    return;
+  }
+  if (!state.t) return;
   const cur = gesture();
   const prev = lastGesture;
   lastGesture = cur;
