@@ -173,7 +173,7 @@
 
       <section>
         <h3>About</h3>
-        <p class="small">simplytake is an experimental tool. Always check the official requirements before you apply.</p>
+        <p class="small">simplytake is an experimental tool. Always check the official requirements before you apply. <a id="btn-notice" href="#notice">Privacy and liability notice</a></p>
         <p class="small"><a href="https://github.com/lutfitek/simplytake/issues/new?template=feedback.md" target="_blank" rel="noopener">Send feedback or report a problem</a> (opens GitHub – please don't attach photos of your face).</p>
       </section>
 
@@ -213,6 +213,34 @@
       <header class="sheet-head"><h2 id="rules-title"></h2><button class="ghost" value="close">Close</button></header>
       <ul id="rules-list"></ul>
       <p class="small">Official source: <a id="rules-link" target="_blank" rel="noopener"></a>. This app is a helper – the issuing agency makes the final decision.</p>
+    </form>
+  </dialog>
+
+  <!-- Privacy and liability notice: on first launch (must be accepted), and from Settings → About -->
+  <dialog id="notice" class="sheet notice">
+    <form method="dialog">
+      <header class="sheet-head"><h2 tabindex="-1" autofocus>Before you start</h2></header>
+      <section>
+        <h3>An experiment</h3>
+        <p>simplytake is a free tool for trying out, not an official service, and it isn’t affiliated with any government or passport agency.</p>
+      </section>
+      <section>
+        <h3>Always check the official rules</h3>
+        <p>Photo requirements differ by country and document, and they change. A green ✓ only means the photo passed simplytake’s own estimated checks. It doesn’t mean it will be accepted. <b>Always check the current requirements and instructions from the official source for your document before you apply.</b> The issuing agency makes the final decision.</p>
+      </section>
+      <section>
+        <h3>Retouching</h3>
+        <p>Some agencies (including the US and UK) reject edited photos. If you use enhancement or background replacement, you’re responsible for making sure that’s allowed.</p>
+      </section>
+      <section>
+        <h3>Your privacy</h3>
+        <p>Your photos stay on your device. Face detection and editing run on your phone; nothing is uploaded, and there are no accounts, analytics or tracking. Only your settings are saved, on your device.</p>
+      </section>
+      <section>
+        <h3>No warranty</h3>
+        <p>simplytake is provided as is, without any warranty. As far as the law allows, the author isn’t liable for rejected applications, fees, delays or any other loss from using it. (<a href="https://polyformproject.org/licenses/noncommercial/1.0.0" target="_blank" rel="noopener">PolyForm Noncommercial License 1.0.0</a>.)</p>
+      </section>
+      <button id="notice-ok" class="primary" value="ok">I understand</button>
     </form>
   </dialog>
 

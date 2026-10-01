@@ -30,12 +30,16 @@ official requirements.
 2. Tap `simplytake.apk` to download it.
 3. Open the download. Android will ask whether your browser may install apps: allow it, then
    tap **Install**. (Android warns about apps from outside the Play Store; this is a test build.)
-4. Open **simplytake** and allow camera access.
+4. Open **simplytake**, read the privacy and liability notice, tap **I understand**, then
+   allow camera access.
 
 New builds install over the old one, so you can update the same way. The app needs camera
 access and has **no internet permission**.
 
 ## Privacy
+
+On first launch the app shows a privacy and liability notice that must be accepted before the
+camera starts. You can reopen it from **⋯ Settings → About**.
 
 - Your photos never leave your device. Face detection, checks and editing all run on the phone.
 - The Android app has no internet permission. The web version downloads the app and its

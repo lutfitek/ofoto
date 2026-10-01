@@ -113,7 +113,13 @@ const prefs = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
-const sheetOpen = () => $('settings').open || $('save').open || $('rules').open;
+const sheetOpen = () => $('settings').open || $('save').open || $('rules').open || $('notice').open;
+
+// Privacy and liability notice: must be accepted once (per notice version)
+// before the camera starts.
+const NOTICE_VERSION = '1';
+let noticeOk = false; // also covers browsers where storage is blocked
+const noticeAccepted = () => noticeOk || prefs.get('noticeAccepted') === NOTICE_VERSION;
 
 // Back button / gesture: each sheet and the photo view is a history entry,
 // so Android's back closes the top one instead of leaving the app.
@@ -306,7 +312,7 @@ $('bubble').addEventListener('click', () => {
 // ---------------------------------------------------------------- camera
 
 async function startCamera() {
-  if (state.camActive) return;
+  if (state.camActive || !noticeAccepted()) return;
   state.camActive = true;
   guide(null, [], false);
   $('bubble-title').textContent = 'Starting camera…';
@@ -1259,8 +1265,21 @@ function zoomAboutCenter(scale, rotation) {
 $('btn-settings').addEventListener('click', () => openSheet($('settings')));
 for (const d of document.querySelectorAll('dialog')) {
   // Tap on the backdrop closes a sheet.
-  d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+  d.addEventListener('click', (e) => { if (e.target === d && (d.id !== 'notice' || noticeAccepted())) d.close(); });
 }
+
+// First launch: the notice can't be dismissed (Esc, back, backdrop) until accepted.
+$('notice').addEventListener('cancel', (e) => { if (!noticeAccepted()) e.preventDefault(); });
+$('notice-ok').addEventListener('click', () => {
+  if (noticeAccepted()) return;
+  noticeOk = true;
+  prefs.set('noticeAccepted', NOTICE_VERSION);
+  if (state.mode === 'live') startCamera();
+});
+$('btn-notice').addEventListener('click', (e) => {
+  e.preventDefault();
+  openSheet($('notice')); // stacks over Settings; closing it returns there
+});
 
 $('zoom').addEventListener('input', (e) => {
   zoomAboutCenter(state.baseScale * 2 ** Number(e.target.value), state.t.rotation);
@@ -1488,6 +1507,7 @@ $('btn-save-png').addEventListener('click', async () => {
 
 setCountry(prefs.get('country') ?? 'us');
 setMode('live');
+if (!noticeAccepted()) $('notice').showModal();
 loadFaceDetector()
   .then(() => {
     state.detector = 'ready';
