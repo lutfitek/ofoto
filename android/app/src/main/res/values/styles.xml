@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Warm studio look; the web UI draws everything else. DayNight follows
+    <!-- Cool studio look; the web UI draws everything else. DayNight follows
          the phone's dark mode (values-night/colors.xml). -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="colorPrimary">@color/brand</item>

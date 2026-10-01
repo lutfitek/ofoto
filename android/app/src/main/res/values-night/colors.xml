@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Studio after dark (matches the dark paper colour in css/style.css). -->
-    <color name="app_background">#3A271E</color>
+    <!-- Studio at night (matches the dark paper colour in css/style.css). -->
+    <color name="app_background">#222A36</color>
     <color name="brand">#121826</color>
 </resources>

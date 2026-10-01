@@ -3,8 +3,8 @@
   "short_name": "simplytake",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f3dcc4",
-  "theme_color": "#f3dcc4",
+  "background_color": "#e6ebf1",
+  "theme_color": "#e6ebf1",
   "icons": [
     {
       "src": "icon.svg",

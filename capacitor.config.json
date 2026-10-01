@@ -2,9 +2,9 @@
   "appId": "com.lutfitek.passportphoto",
   "appName": "simplytake",
   "webDir": "www",
-  "backgroundColor": "#f3dcc4",
+  "backgroundColor": "#e6ebf1",
   "android": {
-    "backgroundColor": "#f3dcc4",
+    "backgroundColor": "#e6ebf1",
     "allowMixedContent": false,
     "webContentsDebuggingEnabled": false
   },

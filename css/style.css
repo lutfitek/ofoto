@@ -1,33 +1,35 @@
-/* simplytake – "studio sweep": the screen is a small photo studio. A warm paper
-   backdrop curves down and flows onto the floor; the photo frame hangs on
-   the paper, the guidance bubble sits on the sweep, the dock rests on the
-   floor. Soft studio lights, thin flowing lines, rounded soft edges. */
+/* simplytake – "studio column": the screen is a small photo studio. A paper
+   column hangs from a roll and sweeps onto the floor, with plain wall
+   showing around it. The photo frame hangs on the paper, the guidance
+   bubble sits on it, the dock rests on the floor. Cool daylight
+   (~5600 K) from above; soft edges; one warm accent for the shutter. */
 :root {
-  /* studio (daylight) */
-  --paper-top: #fbf0e4;
-  --paper: #f3dcc4;
-  --floor: #e7bf9a;
-  --line: #b8774c;
-  --glow: #ffe1b3;
-  --pool: #fff4e4;            /* light pool on the floor */
-  --shade: #9a5a33;           /* the bend and the edges of the studio */
+  /* studio (cool daylight) */
+  --void: #c3ccd6;            /* the wall around the paper */
+  --roll: #56606e;
+  --paper-top: #f6f8fb;
+  --paper: #e6ebf1;
+  --floor: #d0d8e2;
+  --glow: #ffffff;
+  --pool: #f7fbff;            /* light pool on the floor */
+  --shade: #4a5a70;           /* the bend and the paper's shadow */
   /* content */
-  --ink: #3a2419;
-  --muted: #86624e;
-  --surface: rgba(255, 249, 242, 0.82);
-  --surface-2: #fbeee1;
-  --edge: rgba(122, 70, 38, 0.16);
-  --accent: #e2873f;          /* honey/amber, like a warm key light */
-  --accent-2: #c9612f;        /* ember, deeper end of the button glow */
+  --ink: #1e2633;
+  --muted: #5c6878;
+  --surface: rgba(250, 252, 255, 0.86);
+  --surface-2: #f1f4f8;
+  --edge: rgba(36, 56, 86, 0.14);
+  --accent: #e2873f;          /* the one warm light: shutter and buttons */
+  --accent-2: #c9612f;
   --on-accent: #fffaf4;
-  --link: #b4552a;
-  --ok: #4f9a5c;
-  --ok-soft: #e3f1dc;
+  --link: #2f5fb3;
+  --ok: #3f9a5a;
+  --ok-soft: #e1f1e5;
   --bad: #d4513d;
   --warn: #e3a03a;
-  --note-bg: #fbe3c3;
+  --note-bg: #fff0d6;
   --note-ink: #6b3a12;
-  --shadow: 58, 30, 14;       /* rgb for warm shadows */
+  --shadow: 22, 34, 54;       /* rgb for cool shadows */
   --radius: 22px;
   --dock-h: 84px;
   /* Safe areas: Capacitor's Android bridge sets --safe-area-inset-*;
@@ -37,42 +39,35 @@
   color-scheme: light;
 }
 
-/* studio after dark: same set, lamps warmer and the paper in shadow */
+/* studio at night: the same set under cool moonlight */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper-top: #2b1d17;
-    --paper: #3a271e;
-    --floor: #4d3224;
-    --line: #e7a875;
-    --glow: #ffb066;
-    --pool: #ffb066;
-    --shade: #0f0806;
-    --ink: #f8eadc;
-    --muted: #cfa98f;
-    --surface: rgba(48, 32, 25, 0.84);
-    --surface-2: #3b2a22;
-    --edge: rgba(255, 214, 176, 0.14);
-    --accent: #f0a04b;
-    --accent-2: #d8723a;
-    --on-accent: #2b1a10;
-    --link: #f5b47a;
-    --ok: #79c07f;
-    --ok-soft: #2c3b26;
-    --bad: #f07a63;
-    --warn: #f2b45a;
-    --note-bg: #4a3016;
-    --note-ink: #ffd9a6;
+    --void: #0e1218; --roll: #3a4452;
+    --paper-top: #2a3240; --paper: #222a36; --floor: #1b222c;
+    --glow: #9cc2ff; --pool: #8fb6f0; --shade: #000000;
+    --ink: #e8eef6; --muted: #9eabbd;
+    --surface: rgba(30, 37, 48, 0.86); --surface-2: #232b37;
+    --edge: rgba(170, 196, 230, 0.14);
+    --accent: #f0a04b; --accent-2: #d8723a; --on-accent: #23160c;
+    --link: #8fb6f0; --ok: #6cc286; --ok-soft: #1f3528;
+    --bad: #f07a63; --warn: #f2b45a;
+    --note-bg: #3d2e16; --note-ink: #ffd9a6;
     --shadow: 0, 0, 0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper-top: #2b1d17; --paper: #3a271e; --floor: #4d3224; --line: #e7a875; --glow: #ffb066;
-  --pool: #ffb066; --shade: #0f0806;
-  --ink: #f8eadc; --muted: #cfa98f; --surface: rgba(48, 32, 25, 0.84); --surface-2: #3b2a22;
-  --edge: rgba(255, 214, 176, 0.14); --accent: #f0a04b; --accent-2: #d8723a; --on-accent: #2b1a10;
-  --link: #f5b47a; --ok: #79c07f; --ok-soft: #2c3b26; --bad: #f07a63; --warn: #f2b45a;
-  --note-bg: #4a3016; --note-ink: #ffd9a6; --shadow: 0, 0, 0;
+  --void: #0e1218; --roll: #3a4452;
+  --paper-top: #2a3240; --paper: #222a36; --floor: #1b222c;
+  --glow: #9cc2ff; --pool: #8fb6f0; --shade: #000000;
+  --ink: #e8eef6; --muted: #9eabbd;
+  --surface: rgba(30, 37, 48, 0.86); --surface-2: #232b37;
+  --edge: rgba(170, 196, 230, 0.14);
+  --accent: #f0a04b; --accent-2: #d8723a; --on-accent: #23160c;
+  --link: #8fb6f0; --ok: #6cc286; --ok-soft: #1f3528;
+  --bad: #f07a63; --warn: #f2b45a;
+  --note-bg: #3d2e16; --note-ink: #ffd9a6;
+  --shadow: 0, 0, 0;
   color-scheme: dark;
 }
 
@@ -80,7 +75,7 @@
 
 html, body {
   margin: 0;
-  background: var(--paper);
+  background: var(--void);
   color: var(--ink);
   font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
@@ -106,34 +101,28 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .bd-glow { stop-color: var(--glow); }
 .bd-pool { stop-color: var(--pool); }
 .bd-shade { stop-color: var(--shade); }
-.bd-lines path, .bd-arcs path {
-  fill: none;
-  stroke: var(--line);
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-.bd-lines path { stroke-width: 1.1; opacity: 0.42; }
-.bd-arcs path { stroke-width: 1.3; opacity: 0.38; }
-.bd-arcs { opacity: 0.8; }
+.v-shadow { flood-color: var(--shade); }
+.v-roll { fill: var(--roll); }
 
 .app {
   position: relative;
   z-index: 1;
   max-width: 520px;
   margin: 0 auto;
-  padding: calc(14px + var(--sa-top)) 16px calc(var(--dock-h) + 24px + var(--sa-bottom));
+  /* frame sits a little lower and smaller so the paper and wall show around it */
+  padding: calc(48px + var(--sa-top)) 16px calc(var(--dock-h) + 24px + var(--sa-bottom));
 }
 
 /* ---- photo frame: hung on the paper, softly lit ---- */
 .stage {
   position: relative;
-  width: min(100%, calc(56dvh * var(--aspect, 1)));
+  width: min(78%, calc(46dvh * var(--aspect, 1)));
   max-width: 100%;
   margin: 0 auto;
   aspect-ratio: var(--aspect, 1);
   overflow: hidden;
   border-radius: var(--radius);
-  background: #1b120e;
+  background: #10151c;
   touch-action: none;
   box-shadow:
     0 0 0 6px var(--surface),
@@ -167,8 +156,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: absolute;
   top: 12px;
   border-radius: 999px;
-  background: rgba(30, 18, 12, 0.62);
-  color: #fff6ec;
+  background: rgba(16, 22, 30, 0.62);
+  color: #f4f7fb;
   backdrop-filter: blur(6px);
 }
 .chip-btn { left: 12px; padding: 7px 13px; border: 0; font-size: 13px; font-weight: 600; }
@@ -190,8 +179,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
   inset: 0;
   overflow: auto;
   padding: 18px;
-  background: rgba(40, 24, 16, 0.94);
-  color: #fbeee1;
+  background: rgba(18, 24, 33, 0.94);
+  color: #eef3f9;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -201,8 +190,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .intro ol { margin: 0; padding-left: 20px; font-size: 14px; }
 .intro li { margin: 4px 0; }
 .intro b { color: #ffd59c; }
-.intro .small { color: #e3c3a9; }
-.intro select { background: #3b2a22; color: #fbeee1; border-color: rgba(255, 214, 176, 0.25); }
+.intro .small { color: #b9c6d6; }
+.intro select { background: #232b37; color: #eef3f9; border-color: rgba(170, 196, 230, 0.25); }
 .intro .primary { margin-top: auto; }
 
 /* ---- zoom (live camera) ---- */
@@ -383,7 +372,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   overflow: auto;
   box-shadow: 0 -12px 40px rgba(var(--shadow), 0.25);
 }
-.sheet::backdrop { background: rgba(40, 20, 10, 0.45); backdrop-filter: blur(2px); }
+.sheet::backdrop { background: rgba(10, 16, 26, 0.45); backdrop-filter: blur(2px); }
 .sheet-head {
   position: sticky;
   top: 0;
