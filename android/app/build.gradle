@@ -17,8 +17,11 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // Test-build key, committed on purpose so each sideloaded build installs
-    // over the previous one. Use a private key (kept out of git) for Play.
+    // Release builds are signed with the private key from CI secrets
+    // (SIGNING_* environment variables, see .github/workflows/android.yml).
+    // Without them they fall back to the public test key below, which anyone
+    // can use – fine for local builds, not for builds you hand to people.
+    def privateKey = System.getenv('SIGNING_KEYSTORE')
     signingConfigs {
         sideload {
             storeFile file('sideload.keystore')
@@ -26,13 +29,21 @@ android {
             keyAlias 'sideload'
             keyPassword 'passportphoto'
         }
+        if (privateKey) {
+            privateRelease {
+                storeFile file(privateKey)
+                storePassword System.getenv('SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.sideload
         }
         release {
-            signingConfig signingConfigs.sideload
+            signingConfig privateKey ? signingConfigs.privateRelease : signingConfigs.sideload
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

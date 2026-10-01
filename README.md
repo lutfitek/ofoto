@@ -150,9 +150,10 @@ multiclass background model.
 npm run android:debug   # build www/, cap sync, gradle assembleDebug (Node 22, JDK 21, Android SDK)
 ```
 
-Builds are signed with `android/app/sideload.keystore`, a **test key committed on purpose** so
-sideloaded builds install over each other. Before publishing to Google Play, create a private
-upload key, keep it out of git, and read it from CI secrets instead.
+CI signs the APK with a private key when the repository secrets `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` are set. Without
+them it falls back to `android/app/sideload.keystore`, a public **test key committed on
+purpose** for local builds; the release notes say which key signed each build.
 
 ### Files
 

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Only what the app actually shares: photos taken with the camera app (the
+     app's own Pictures folder) and files handed to the share sheet (cache).
+     Nothing outside the app's own folders is exposed. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <external-path name="my_images" path="." />
-    <cache-path name="my_cache_images" path="." />
+    <external-files-path name="camera_photos" path="Pictures/" />
+    <cache-path name="shared_files" path="." />
 </paths>
