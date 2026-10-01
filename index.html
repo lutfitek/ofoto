@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self'; worker-src 'self' blob:; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#e6ebf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#222a36" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>simplytake</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Studio backdrop: a paper column hung from a roll, sweeping onto the floor (decorative). -->
+  <svg class="backdrop" viewBox="0 0 400 860" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false"><defs>
+  <linearGradient id="v-paper" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" class="bd-paper-top"/><stop offset="0.6" class="bd-paper"/><stop offset="1" class="bd-floor"/>
+  </linearGradient>
+  <radialGradient id="v-glow"><stop offset="0" class="bd-glow" stop-opacity="0.85"/><stop offset="1" class="bd-glow" stop-opacity="0"/></radialGradient>
+  <radialGradient id="v-pool"><stop offset="0" class="bd-pool" stop-opacity="0.85"/><stop offset="1" class="bd-pool" stop-opacity="0"/></radialGradient>
+  <linearGradient id="v-bend" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" class="bd-shade" stop-opacity="0"/><stop offset="0.5" class="bd-shade" stop-opacity="0.18"/><stop offset="1" class="bd-shade" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="v-soft" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="10" stdDeviation="14" class="v-shadow" flood-opacity="0.22"/>
+  </filter>
+  <clipPath id="v-clip"><path d="M30 30 H370 V560 C370 650 400 700 410 780 V880 H-10 V780 C0 700 30 650 30 560 Z"/></clipPath>
+</defs>
+  <path d="M30 30 H370 V560 C370 650 400 700 410 780 V880 H-10 V780 C0 700 30 650 30 560 Z" fill="url(#v-paper)" filter="url(#v-soft)"/>
+  <g clip-path="url(#v-clip)">
+    <rect x="-40" y="520" width="480" height="140" fill="url(#v-bend)"/>
+    <ellipse cx="200" cy="740" rx="240" ry="100" fill="url(#v-pool)"/>
+    <ellipse cx="200" cy="120" rx="220" ry="170" fill="url(#v-glow)"/>
+  </g>
+  <rect x="22" y="16" width="356" height="16" rx="8" class="v-roll"/></svg>
+
+  <main class="app">
+    <!-- Photo frame: live camera or the captured photo (drag / pinch to adjust) -->
+    <div class="stage" id="stage">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="photo" hidden></canvas>
+      <canvas id="overlay" class="overlay"></canvas>
+      <!-- Shown until the camera is live or a photo is loaded (drawn from the app icon). -->
+      <div id="placeholder" class="placeholder" aria-hidden="true">
+        <svg viewBox="0 0 120 120">
+          <path class="ph-bracket" d="M70 13 H105 V48"/>
+          <path class="ph-bracket" d="M15 72 V107 H50"/>
+          <g class="ph-card">
+            <rect x="32" y="25" width="56" height="70" rx="7"/>
+            <ellipse class="ph-eye" cx="49" cy="53" rx="6" ry="7.5"/>
+            <ellipse class="ph-eye" cx="71" cy="53" rx="6" ry="7.5"/>
+            <circle class="ph-pupil" cx="50.2" cy="55" r="2.8"/>
+            <circle class="ph-pupil" cx="69.8" cy="55" r="2.8"/>
+            <path class="ph-smile" d="M48 74 Q60 80.5 72 73.5"/>
+          </g>
+        </svg>
+        <span id="placeholder-text">No photo yet</span>
+      </div>
+      <div id="countdown" class="countdown" hidden></div>
+      <button id="btn-retake" class="chip-btn" type="button" hidden>↺ Retake</button>
+      <span id="country-tag" class="country-tag"></span>
+      <div id="intro" class="intro" hidden>
+        <h2>Camera ready – before you shoot</h2>
+        <label class="field intro-field">Photo for
+          <select id="intro-country" aria-label="Document"></select>
+        </label>
+        <ol id="intro-steps"></ol>
+        <label class="small"><input id="intro-hide" type="checkbox"> Don’t show again</label>
+        <button id="intro-ok" class="primary" type="button">Start</button>
+      </div>
+    </div>
+
+    <!-- Zoom for the live camera: hardware zoom when the camera has it, else digital -->
+    <div id="zoom-bar" class="zoom-bar" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5M8 11h6"/></svg>
+      <input id="cam-zoom" type="range" min="1" max="3" step="0.01" value="1" aria-label="Zoom">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5M8 11h6M11 8v6"/></svg>
+      <output id="cam-zoom-val" for="cam-zoom">1.0×</output>
+    </div>
+
+    <!-- Guidance bubble: what to fix next, or a green check when compliant -->
+    <button id="bubble" class="bubble" type="button" aria-live="polite" aria-controls="checks" aria-expanded="false">
+      <span id="bubble-icon" class="bubble-icon"></span>
+      <span class="bubble-text">
+        <b id="bubble-title">Starting camera…</b>
+        <small id="bubble-sub"></small>
+      </span>
+    </button>
+    <div id="checks" class="checks" hidden></div>
+  </main>
+
+  <!-- Bottom bar: upload · capture/save · settings -->
+  <nav class="dock">
+    <label class="dock-btn" title="Upload a photo">
+      <input id="file" type="file" accept="image/*" hidden>
+      <input id="snap" type="file" accept="image/*" capture="environment" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+      <small>Upload</small>
+    </label>
+    <button id="btn-main" class="dock-main" type="button">
+      <svg id="icon-capture" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>
+      <svg id="icon-save" viewBox="0 0 24 24" aria-hidden="true" hidden><rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4 15 4.5-4.5 4 4 2.5-2.5 5 5"/><circle cx="15.5" cy="9" r="1.5"/></svg>
+      <small id="main-label">Capture</small>
+    </button>
+    <button id="btn-settings" class="dock-btn" type="button" title="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+      <small>Settings</small>
+    </button>
+  </nav>
+
+  <!-- Settings sheet -->
+  <dialog id="settings" class="sheet">
+    <form method="dialog">
+      <header class="sheet-head"><h2>Settings</h2><button class="ghost" value="close">Done</button></header>
+
+      <section>
+        <h3>Document</h3>
+        <select id="country" aria-label="Country"></select>
+        <p class="small"><button id="btn-rules" class="link" type="button">View rules</button> · <button id="btn-help" class="link" type="button">How to take a good photo</button></p>
+      </section>
+
+      <section data-mode="live">
+        <h3>Camera</h3>
+        <div class="row">
+          <button id="btn-flip" class="secondary" type="button">🔄 Flip camera</button>
+          <button id="btn-timer" class="secondary" type="button">⏱ Timer: <span id="timer-label">Off</span></button>
+        </div>
+        <label class="toggle"><input id="auto" type="checkbox" checked> Auto-capture when everything is green</label>
+        <label class="toggle"><input id="hires" type="checkbox" checked> Full-resolution stills when the phone supports them</label>
+        <p id="hires-status" class="small">Checking…</p>
+      </section>
+
+      <section data-mode="photo">
+        <h3>Adjust</h3>
+        <p class="small">You can also drag and pinch the photo directly.</p>
+        <div class="sliders">
+          <label>Zoom <input id="zoom" type="range" min="-1" max="1" step="0.001" value="0"></label>
+          <label>Rotate <input id="rotate" type="range" min="-20" max="20" step="0.1" value="0"></label>
+        </div>
+        <div class="row"><button id="btn-autofit" class="secondary" type="button">Auto-crop</button></div>
+      </section>
+
+      <section data-mode="photo">
+        <h3>Enhance</h3>
+        <div class="sliders">
+          <label>Light <input id="brightness" type="range" min="-60" max="80" step="1" value="0"></label>
+          <label>Contrast <input id="contrast" type="range" min="0.6" max="1.6" step="0.01" value="1"></label>
+          <label>Sharpen <input id="sharpen" type="range" min="0" max="1" step="0.05" value="0"></label>
+        </div>
+        <div class="row">
+          <button id="btn-enhance-auto" class="secondary" type="button">✨ Auto enhance</button>
+          <button id="btn-enhance-reset" class="secondary" type="button">Original</button>
+        </div>
+      </section>
+
+      <section data-mode="photo">
+        <h3>Background</h3>
+        <div class="swatches" id="bg-options">
+          <button type="button" data-bg="original" class="swatch active"><i style="background:linear-gradient(135deg,#8a8f98,#c9ccd1)"></i>Original</button>
+          <button type="button" data-bg="#ffffff" class="swatch"><i style="background:#ffffff"></i>White</button>
+          <button type="button" data-bg="#f5f3ee" class="swatch"><i style="background:#f5f3ee"></i>Off-white</button>
+          <button type="button" data-bg="#e4e4e2" class="swatch"><i style="background:#e4e4e2"></i>Light grey</button>
+          <button type="button" data-bg="#f3ead3" class="swatch"><i style="background:#f3ead3"></i>Cream</button>
+          <button type="button" data-bg="#1f5fbf" data-extra class="swatch" hidden><i style="background:#1f5fbf"></i>Blue</button>
+          <button type="button" data-bg="transparent" class="swatch"><i class="checker"></i>Remove</button>
+        </div>
+        <p id="bg-status" class="small"></p>
+      </section>
+
+      <p id="alter-note" class="note" hidden></p>
+
+      <section>
+        <h3>About</h3>
+        <p class="small">simplytake is an experimental tool. Always check the official requirements before you apply. <a id="btn-notice" href="#notice">Privacy and liability notice</a></p>
+        <p class="small"><a href="https://github.com/lutfitek/simplytake/issues/new?template=feedback.md" target="_blank" rel="noopener">Send feedback or report a problem</a> (opens GitHub – please don't attach photos of your face).</p>
+      </section>
+
+      <section>
+        <h3>Export</h3>
+        <label class="field">Digital file size
+          <select id="max-kb">
+            <option value="0">Best quality</option>
+            <option value="240">≤ 240 KB</option>
+            <option value="100">≤ 100 KB</option>
+            <option value="50">≤ 50 KB</option>
+            <option value="25">≤ 25 KB</option>
+          </select>
+        </label>
+      </section>
+    </form>
+  </dialog>
+
+  <!-- Save sheet -->
+  <dialog id="save" class="sheet">
+    <form method="dialog">
+      <header class="sheet-head"><h2>Save photo</h2><button class="ghost" value="close">Close</button></header>
+      <img id="result-img" class="result" alt="Your passport photo">
+      <p id="save-hint" class="small center" hidden></p>
+      <p id="save-warning" class="note" hidden></p>
+      <div class="exports">
+        <button id="btn-save-digital" class="primary" type="button">Digital photo<small id="digital-label"></small></button>
+        <button id="btn-save-print" class="primary" type="button">4×6 print sheet<small id="print-label"></small></button>
+        <button id="btn-save-png" class="secondary" type="button" hidden>Cut-out (transparent PNG)</button>
+      </div>
+      <p class="small">Print the 4×6 sheet at <b>actual size</b> (no “fit to page”) on photo paper and cut along the gray lines. Also check yourself: no glasses or hat, neutral face with mouth closed, sharp and recent.</p>
+    </form>
+  </dialog>
+
+  <dialog id="rules" class="sheet">
+    <form method="dialog">
+      <header class="sheet-head"><h2 id="rules-title"></h2><button class="ghost" value="close">Close</button></header>
+      <ul id="rules-list"></ul>
+      <p class="small">Official source: <a id="rules-link" target="_blank" rel="noopener"></a>. This app is a helper – the issuing agency makes the final decision.</p>
+    </form>
+  </dialog>
+
+  <!-- Privacy and liability notice: on first launch (must be accepted), and from Settings → About -->
+  <dialog id="notice" class="sheet notice">
+    <form method="dialog">
+      <header class="sheet-head"><h2 tabindex="-1" autofocus>Before you start</h2></header>
+      <section>
+        <h3>An experiment</h3>
+        <p>simplytake is a free tool for trying out, not an official service, and it isn’t affiliated with any government or passport agency.</p>
+      </section>
+      <section>
+        <h3>Always check the official rules</h3>
+        <p>Photo requirements differ by country and document, and they change. A green ✓ only means the photo passed simplytake’s own estimated checks. It doesn’t mean it will be accepted. <b>Always check the current requirements and instructions from the official source for your document before you apply.</b> The issuing agency makes the final decision.</p>
+      </section>
+      <section>
+        <h3>Retouching</h3>
+        <p>Some agencies (including the US and UK) reject edited photos. If you use enhancement or background replacement, you’re responsible for making sure that’s allowed.</p>
+      </section>
+      <section>
+        <h3>Your privacy</h3>
+        <p>Your photos stay on your device. Face detection and editing run on your phone; nothing is uploaded, and there are no accounts, analytics or tracking. Only your settings are saved, on your device.</p>
+      </section>
+      <section>
+        <h3>No warranty</h3>
+        <p>simplytake is provided as is, without any warranty. As far as the law allows, the author isn’t liable for rejected applications, fees, delays or any other loss from using it. (<a href="https://polyformproject.org/licenses/noncommercial/1.0.0" target="_blank" rel="noopener">PolyForm Noncommercial License 1.0.0</a>.)</p>
+      </section>
+      <button id="notice-ok" class="primary" value="ok">I understand</button>
+    </form>
+  </dialog>
+
+  <canvas id="work" hidden></canvas>
+  <script src="js/assets-local.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
